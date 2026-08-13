@@ -5,3 +5,4 @@ __pycache__/
 *.csv
 data/
 .extract_checkpoint.jsonl
+.DS_Store
