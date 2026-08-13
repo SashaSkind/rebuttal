@@ -130,7 +130,7 @@ def classify_one(row, api_key, url, model):
                 },
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=90, context=ctx) as resp:
+            with urllib.request.urlopen(req, timeout=120, context=ctx) as resp:
                 body = json.loads(resp.read().decode())
             text = (body["choices"][0]["message"].get("content") or "").strip()
             if text.startswith("```"):
