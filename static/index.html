@@ -3,61 +3,226 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Rebuttal</title>
 <style>
-  :root{--bg:#0f1115;--card:#181b22;--ink:#e8eaf0;--dim:#8b93a7;--accent:#4f8cff;--win:#2ecc71;--lose:#e74c3c;--warn:#f5a623}
-  *{box-sizing:border-box;margin:0}
-  body{background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,system-ui,sans-serif;max-width:880px;margin:0 auto;padding:24px}
-  h1{font-size:22px} h3{font-size:15px}
-  .sub{color:var(--dim);font-size:13px;margin:4px 0 20px}
-  textarea{width:100%;height:150px;background:var(--card);color:var(--ink);border:1px solid #2a2f3a;border-radius:8px;padding:12px;font:13px/1.4 ui-monospace,monospace}
-  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:10px 0}
-  input[type=date]{background:var(--card);color:var(--ink);border:1px solid #2a2f3a;border-radius:6px;padding:6px}
-  label.ev{font-size:13px;color:var(--dim);display:inline-flex;gap:4px;align-items:center}
-  button{background:var(--accent);border:0;color:#fff;padding:10px 18px;border-radius:8px;font-size:14px;cursor:pointer}
-  button.ghost{background:#2a2f3a} button:disabled{opacity:.5}
-  .card{background:var(--card);border:1px solid #2a2f3a;border-radius:10px;padding:14px;margin:10px 0}
-  .card.excluded{opacity:.55;border-color:var(--lose)} .card.excluded h3{text-decoration:line-through}
-  .rate{float:right;font-weight:700} .win{color:var(--win)} .dim{color:var(--dim);font-size:13px}
-  .callout{border-left:4px solid var(--warn)}
-  .tag{font-size:11px;background:#2a2f3a;border-radius:4px;padding:2px 6px;color:var(--dim)}
-  pre{white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;background:#0b0d11;padding:14px;border-radius:8px}
-  .stat{font-size:17px;margin:14px 0 6px}
+  :root{
+    --ink:#141514; --paper:#ffffff; --mint:#9df1c6; --gray:#d8d8d5;
+    --dkcell:#1d1f1e; --dim:#8a8f8a; --dtext:#d9d9d6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--ink);color:var(--ink);
+       font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
+       -webkit-font-smoothing:antialiased}
+  .frame{max-width:1600px;margin:0 auto;border:1px solid var(--ink);
+         display:grid;gap:1px;background:var(--ink)}
+  .grid{display:grid;gap:1px;background:var(--ink)}
+  .cell{background:var(--paper);padding:28px}
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;
+        letter-spacing:.08em;text-transform:uppercase}
+  .dim{color:var(--dim)}
+
+  /* halftone dither */
+  .dither{background-color:#f2f2ef;background-image:
+    radial-gradient(ellipse 55% 45% at 25% 20%, #ffffff 0%, #ffffff00 70%),
+    radial-gradient(ellipse 40% 70% at 70% 60%, #cfcfcc88 0%, #cfcfcc00 70%),
+    radial-gradient(circle, #141514 0 1px, transparent 1.35px),
+    radial-gradient(circle, #141514 0 .65px, transparent .95px);
+    background-size:100% 100%,100% 100%,7px 7px,3.5px 3.5px;
+    background-position:0 0,0 0,0 0,1.75px 1.75px}
+
+  /* header */
+  header{display:grid;grid-template-columns:76px 1fr auto auto;gap:1px;background:var(--ink)}
+  .logo{background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;
+        font-weight:700;font-size:30px;letter-spacing:-.04em}
+  .hbar{background:var(--paper);display:flex;align-items:center;gap:34px;padding:0 30px;height:72px}
+  .hbar nav{margin-left:auto;display:flex;gap:26px}
+  .hbar nav a{color:var(--ink);text-decoration:none;font-size:16px}
+  .hbar nav a:hover{text-decoration:underline}
+  .toggle{background:var(--paper);display:flex;align-items:center;padding:0 22px;font-size:18px}
+  .hcta{background:var(--ink);color:#fff;display:flex;align-items:center;gap:40px;
+        padding:0 30px;text-decoration:none;font-size:16px}
+  .hcta:hover{background:var(--dkcell)}
+
+  /* hero */
+  .hero{grid-template-columns:1fr 1fr}
+  .hero h1{font-size:clamp(90px,12vw,180px);font-weight:500;letter-spacing:-.045em;
+           line-height:.9;padding:40px 10px 60px 34px}
+  .band{grid-template-columns:1fr 1fr 1fr}
+  .black{background:var(--ink);color:#fff}
+  .mintc{background:var(--mint)}
+  .grayc{background:var(--gray)}
+  .pitch{display:flex;flex-direction:column;justify-content:space-between;min-height:420px}
+  .pitch p,.impact p{font-size:clamp(20px,1.8vw,27px);line-height:1.32;font-weight:500;max-width:30ch}
+  .ctarow{display:flex;justify-content:space-between;align-items:center;color:#fff;
+          text-decoration:none;margin-top:48px;cursor:pointer}
+  .ctarow:hover{color:var(--mint)}
+
+  /* app section */
+  .label{display:flex;align-items:flex-start;gap:10px}
+  .sq{width:10px;height:10px;background:var(--ink);display:inline-block;margin-top:2px}
+  .sq.m{background:var(--mint)}
+  textarea{width:100%;height:190px;border:0;outline:none;resize:vertical;background:transparent;
+           font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:13px;line-height:1.5}
+  .controls{grid-template-columns:220px 1fr 320px}
+  input[type=date]{border:0;outline:none;background:transparent;font-family:ui-monospace,Menlo,monospace;
+                   font-size:14px;margin-top:14px;color:var(--ink)}
+  #evlist{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:14px}
+  #evlist label{display:inline-flex;gap:8px;align-items:center;cursor:pointer;
+                font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.06em;
+                text-transform:uppercase}
+  #evlist input{accent-color:var(--ink);width:13px;height:13px}
+  .bigbtn{display:flex;justify-content:space-between;align-items:center;width:100%;
+          background:var(--ink);color:#fff;border:0;cursor:pointer;padding:28px 30px;
+          font-family:ui-monospace,Menlo,monospace;font-size:13px;letter-spacing:.1em;
+          text-transform:uppercase;text-align:left}
+  .bigbtn:hover{color:var(--mint)} .bigbtn:disabled{opacity:.45}
+  .bigbtn.minted{background:var(--mint);color:var(--ink)}
+  .bigbtn.minted:hover{color:#000;background:#b8f6d6}
+
+  /* results */
+  .stats{grid-template-columns:2fr 1fr}
+  #headline{font-size:clamp(34px,4vw,58px);font-weight:600;letter-spacing:-.02em;line-height:1.05}
+  #headline .m{color:var(--mint)}
+  .mname{font-size:clamp(26px,3vw,42px);font-weight:600;letter-spacing:-.02em;margin:14px 0 10px}
+
+  .srow{display:grid;grid-template-columns:90px 1.1fr 1fr;gap:20px;background:var(--dkcell);
+        color:#fff;padding:44px 34px;border-top:1px solid var(--ink)}
+  .snum{color:var(--dim);padding-top:8px}
+  .stitle h3{font-size:clamp(28px,3vw,44px);font-weight:500;letter-spacing:-.02em;line-height:1.08;max-width:14ch}
+  .rate{font-size:clamp(44px,4.5vw,64px);font-weight:600;color:var(--mint);
+        letter-spacing:-.03em;margin-top:18px}
+  .sright p{color:var(--dtext);font-size:16px;line-height:1.55;max-width:44ch}
+  .mlist{list-style:none;margin-top:26px}
+  .mlist li{display:flex;gap:10px;align-items:flex-start;color:#eaefe9;
+            font-family:ui-monospace,Menlo,monospace;font-size:12.5px;letter-spacing:.07em;
+            text-transform:uppercase;margin-top:10px}
+  .mlist li::before{content:"";width:10px;height:10px;background:var(--mint);
+                    flex:none;margin-top:2px}
+  .srow.off{opacity:.5}
+  .srow.off h3{text-decoration:line-through}
+  .extag{color:#f0a9a0;margin-top:16px}
+
+  pre{white-space:pre-wrap;font-family:ui-monospace,"SF Mono",Menlo,monospace;
+      font-size:13px;line-height:1.55;margin-top:18px}
+  .outrow{grid-template-columns:1fr 1fr}
+
+  /* footer */
+  .foot{grid-template-columns:1fr 1fr}
+  .wordmark{font-size:clamp(80px,9vw,150px);font-weight:600;letter-spacing:-.04em;
+            color:#fff;line-height:.9;padding:30px 0 10px}
+  .fmint{display:flex;flex-direction:column;justify-content:space-between}
+  .fmint .big{font-size:clamp(28px,3vw,44px);font-weight:600;letter-spacing:-.02em;max-width:16ch}
+
   #results,#draftbox{display:none}
+  @media(max-width:960px){
+    .hero,.band,.controls,.stats,.outrow,.foot{grid-template-columns:1fr}
+    .srow{grid-template-columns:60px 1fr}
+    .sright{grid-column:2}
+    header{grid-template-columns:60px 1fr}
+    .toggle,.hcta{display:none}
+  }
 </style></head>
 <body>
-<h1>Rebuttal</h1>
-<div class="sub">Appeals that remember. Outcome data: California DMHC Independent Medical Review
-records via the CHHS Open Data Portal (DMHC / Office of the Patient Advocate). Noncommercial
-demo built at the MongoDB Persistent Context Sprint. Not legal or medical advice.</div>
+<div class="frame">
 
-<textarea id="letter" placeholder="Paste the denial letter here…"></textarea>
-<div class="row">
-  <span class="dim">Denial date:</span><input type="date" id="ddate">
-  <span id="evlist"></span>
-</div>
-<button id="go" onclick="analyze()">Analyze this denial</button>
+  <header>
+    <div class="logo">R</div>
+    <div class="hbar">
+      <span class="mono" id="clock">—</span>
+      <nav>
+        <a href="#app">Analyze</a><a href="#results">Strategies</a><a href="#draftbox">Draft</a>
+      </nav>
+    </div>
+    <div class="toggle">◐</div>
+    <a class="hcta" href="#app">No cold start <span>→</span></a>
+  </header>
 
-<div id="results">
-  <div class="stat" id="headline"></div>
-  <div class="dim" id="deadline"></div>
-  <div class="card callout" id="missing"></div>
-  <div id="strategies"></div>
-  <div id="excluded"></div>
-  <button id="draftbtn" onclick="draft()">Draft the appeal</button>
-</div>
-
-<div id="draftbox">
-  <h1 style="font-size:17px;margin-top:20px">Appeal draft <span class="tag" id="usedstrat"></span></h1>
-  <pre id="draft"></pre>
-  <div class="row">
-    <span class="dim">When the insurer responds:</span>
-    <button class="ghost" onclick="outcome('upheld')">Denial upheld</button>
-    <button onclick="outcome('overturned')">Overturned 🎉</button>
+  <div class="grid hero">
+    <div class="cell"><h1>Rebuttal</h1></div>
+    <div class="cell dither"></div>
   </div>
+
+  <div class="grid band">
+    <div class="cell dither"></div>
+    <div class="cell black pitch">
+      <p>The insurer remembers every appeal ever filed. Patients start from zero. Rebuttal remembers what wins — for you, and for everyone before you.</p>
+      <a class="ctarow mono" href="#app">Start an appeal <span>→</span></a>
+    </div>
+    <div class="cell mintc impact">
+      <p>Fewer than 1% of denied claims are ever appealed. Of those that are, 43&ndash;67% win.</p>
+      <p style="margin-top:26px">Built on 35,000+ real California IMR decisions.</p>
+    </div>
+  </div>
+
+  <div class="grid" id="app" style="grid-template-columns:280px 1fr">
+    <div class="cell label"><span class="sq"></span><span class="mono">Paste the denial letter</span></div>
+    <div class="cell"><textarea id="letter" placeholder="PASTE THE DENIAL LETTER HERE…"></textarea></div>
+  </div>
+
+  <div class="grid controls">
+    <div class="cell">
+      <div class="label"><span class="sq"></span><span class="mono">Denial date</span></div>
+      <input type="date" id="ddate">
+    </div>
+    <div class="cell">
+      <div class="label"><span class="sq"></span><span class="mono">Evidence you already have</span></div>
+      <div id="evlist"></div>
+    </div>
+    <button class="bigbtn" id="go" onclick="analyze()">Analyze this denial <span>→</span></button>
+  </div>
+
+  <div id="results">
+    <div class="grid stats">
+      <div class="cell black" id="headline"></div>
+      <div class="cell grayc">
+        <div class="label"><span class="sq"></span><span class="mono">Deadlines</span></div>
+        <div class="mono" id="deadline" style="margin-top:16px;line-height:2"></div>
+      </div>
+    </div>
+    <div class="grid"><div class="cell mintc" id="missing"></div></div>
+    <div id="strategies"></div>
+    <div id="excluded"></div>
+    <div class="grid"><button class="bigbtn" id="draftbtn" onclick="draft()">Draft the appeal <span>→</span></button></div>
+  </div>
+
+  <div id="draftbox">
+    <div class="grid">
+      <div class="cell">
+        <div class="label"><span class="sq m"></span><span class="mono">Appeal draft — built on: <span id="usedstrat"></span></span></div>
+        <pre id="draft"></pre>
+      </div>
+    </div>
+    <div class="grid outrow">
+      <button class="bigbtn" onclick="outcome('upheld')">The insurer upheld the denial <span>→</span></button>
+      <button class="bigbtn minted" onclick="outcome('overturned')">Denial overturned <span>→</span></button>
+    </div>
+  </div>
+
+  <div class="grid foot">
+    <div class="cell black">
+      <div class="mono" style="color:#8a8f8a">Appeals that remember</div>
+      <div class="wordmark">rebuttal</div>
+    </div>
+    <div class="cell mintc fmint">
+      <div class="big">Every appeal filed makes the next one smarter.</div>
+      <div class="mono" style="margin-top:40px;line-height:2">
+        MongoDB Atlas · Vector Search (voyage-4) · Built at the Persistent Context Sprint<br>
+        Data: California DMHC Independent Medical Review — CHHS Open Data · DMHC / Office of the Patient Advocate<br>
+        Noncommercial · Not legal or medical advice
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
 let caseId = null;
 const $ = id => document.getElementById(id);
+
+function tick(){
+  $('clock').textContent = new Date().toLocaleTimeString('en-US',
+    {hour:'2-digit',minute:'2-digit'}) + ' SF';
+}
+setInterval(tick, 30000); tick();
 
 async function api(path, body){
   const r = await fetch(path, {method:'POST', headers:{'content-type':'application/json'},
@@ -69,7 +234,7 @@ async function api(path, body){
 (async () => {   // evidence checkboxes from the catalog
   const meta = await (await fetch('/api/meta')).json();
   $('evlist').innerHTML = meta.evidence_types.map(e =>
-    `<label class="ev"><input type="checkbox" value="${e._id}">${e.name}</label>`).join(' ');
+    `<label><input type="checkbox" value="${e._id}">${e.name}</label>`).join('');
 })();
 
 async function analyze(){
@@ -82,28 +247,47 @@ async function analyze(){
   }
   const r = await api(`/api/case/${caseId}/analyze`);
   $('results').style.display = 'block';
-  $('headline').innerHTML = `Based on <b>${r.similar_cases}</b> similar California IMR cases —
-    <b class="win">${Math.round(r.overall_overturn_rate*100)}%</b> were overturned.`;
-  $('deadline').textContent = `Internal appeal deadline: ${r.deadlines.internal_appeal_due}
-    · External review window after that: ${r.deadlines.external_review_due}`;
-  $('missing').style.display = r.missing_evidence ? 'block' : 'none';
+  $('headline').innerHTML =
+    `Based on <span class="m">${r.similar_cases}</span> similar California IMR cases —
+     <span class="m">${Math.round(r.overall_overturn_rate*100)}%</span> were overturned.`;
+  $('deadline').innerHTML =
+    `INTERNAL APPEAL DUE&nbsp;&nbsp;${r.deadlines.internal_appeal_due}<br>
+     EXTERNAL REVIEW DUE&nbsp;&nbsp;${r.deadlines.external_review_due}`;
+  $('missing').parentElement.style.display = r.missing_evidence ? 'grid' : 'none';
   if(r.missing_evidence) $('missing').innerHTML =
-    `<b>The document you're missing:</b> ${r.missing_evidence.name} —
-     present in ${r.missing_evidence.seen_in_overturned} of the
-     ${r.missing_evidence.overturned_total} overturned similar cases.`;
+    `<div class="label"><span class="sq"></span><span class="mono">The document you're missing</span></div>
+     <div class="mname">${r.missing_evidence.name}</div>
+     <div class="mono">Present in ${r.missing_evidence.seen_in_overturned} of the
+       ${r.missing_evidence.overturned_total} overturned similar cases</div>`;
   $('strategies').innerHTML = r.strategies.map((s,i) => `
-    <div class="card"><span class="rate win">${Math.round(s.overturn_rate*100)}%</span>
-      <h3>${i+1}. ${s.name}</h3>
-      <div class="dim">${s.description}</div>
-      <div class="dim">Won ${s.overturns} of ${s.n} similar cases
-        ${s.citations[0] ? '· e.g. IMR case ' + s.citations[0].ref : ''}</div>
+    <div class="srow">
+      <div class="snum mono">${String(i+1).padStart(2,'0')}</div>
+      <div class="stitle">
+        <h3>${s.name}</h3>
+        <div class="rate">${Math.round(s.overturn_rate*100)}%</div>
+        <div class="mono dim">Overturned in similar cases</div>
+      </div>
+      <div class="sright">
+        <p>${s.description}</p>
+        <ul class="mlist">
+          <li>Won ${s.overturns} of ${s.n} similar cases</li>
+          ${s.citations[0] ? `<li>e.g. IMR case ${s.citations[0].ref}</li>` : ''}
+        </ul>
+      </div>
     </div>`).join('');
   $('excluded').innerHTML = r.excluded.map(e => `
-    <div class="card excluded"><span class="rate">EXCLUDED</span>
-      <h3>${e.name}</h3>
-      <div class="dim">You already appealed with this and the denial was upheld.
-        It will not be suggested to you again.</div>
+    <div class="srow off">
+      <div class="snum mono">××</div>
+      <div class="stitle">
+        <h3>${e.name}</h3>
+        <div class="mono extag">Excluded — lost at internal review</div>
+      </div>
+      <div class="sright">
+        <p>You already appealed with this argument and the denial was upheld.
+           It will not be suggested to you again.</p>
+      </div>
     </div>`).join('');
+  $('results').scrollIntoView({behavior:'smooth'});
 }
 
 async function draft(){
@@ -113,6 +297,7 @@ async function draft(){
     $('draftbox').style.display = 'block';
     $('usedstrat').textContent = d.strategy.name;
     $('draft').textContent = d.letter;
+    $('draftbox').scrollIntoView({behavior:'smooth'});
   } finally { $('draftbtn').disabled = false; }
 }
 
@@ -120,7 +305,7 @@ async function outcome(o){
   await api(`/api/case/${caseId}/outcome`, {outcome: o});
   if(o === 'upheld'){ await analyze(); await draft(); }  // beat two, live: re-rank + new argument
   else { $('headline').innerHTML =
-    '🎉 Denial overturned. Recorded — the next patient\'s ranking just got smarter.'; }
+    'Denial <span class="m">overturned</span>. Recorded — the next patient\'s ranking just got smarter.'; }
 }
 </script>
 </body></html>
