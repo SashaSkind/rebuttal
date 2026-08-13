@@ -7,11 +7,11 @@ LETTER = open("demo/denial_letter.txt").read()
 
 case = requests.post(f"{BASE}/api/case", json={
     "denial_text": LETTER, "denial_date": "2026-07-20",
-    "evidence_have": ["physician-letter"]}).json()
+    "evidence_have": ["sleep_study"]}).json()
 cid = case["case_id"]
 
 r1 = requests.post(f"{BASE}/api/case/{cid}/analyze").json()
-assert r1["strategies"], "no ranked strategies — is the vector index queryable?"
+assert r1["strategies"], "no ranked strategies — is a search index queryable?"
 ids1 = [s["strategy_id"] for s in r1["strategies"]]
 top1 = ids1[0]
 

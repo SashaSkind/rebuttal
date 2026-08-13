@@ -2,19 +2,18 @@
 Meridian Health Plan of California
 Date: July 20, 2026
 Member: J. Rivera        Member ID: MHP-4821937
-RE: Denial of Prior Authorization — Proton Beam Radiation Therapy
+RE: Denial of Prior Authorization — CPAP Device and Supplies
 
 Dear Member,
 
 We have reviewed the prior-authorization request submitted by your physician,
-Dr. Osei, for proton beam radiation therapy for treatment of localized prostate
-cancer. This request is DENIED.
+Dr. Osei, for a continuous positive airway pressure (CPAP) device for the
+treatment of obstructive sleep apnea. This request is DENIED.
 
-Rationale: Proton beam radiation therapy is considered experimental and
-investigational for this indication. Available clinical evidence does not
-establish superiority over standard intensity-modulated radiation therapy
-(IMRT), which is a covered benefit under your plan and is the medically
-appropriate alternative.
+Rationale: The requested equipment is not medically necessary at this time.
+The submitted documentation does not establish that conservative measures,
+including positional therapy and weight management, are insufficient to manage
+your condition.
 
 You have the right to appeal this decision within 180 days of the date of this
 letter. If the internal appeal upholds the denial, you may request an

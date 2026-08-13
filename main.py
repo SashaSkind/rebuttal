@@ -14,14 +14,14 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from pymongo import MongoClient
 
-from schema import (ATTEMPTS, CASES, DB_NAME, DENIAL_PROFILES, EVIDENCE_TYPES,
-                    IMR_DECISIONS, MIN_SAMPLE, OUTCOME_OVERTURNED, OUTCOME_UPHELD,
-                    RAW_DETERMINATION_FIELD, RAW_FINDINGS_FIELD, RAW_REF_FIELD,
-                    STRATEGIES, VECTOR_INDEX)
+from schema import (COLL_ATTEMPTS, COLL_CASES, COLL_DECISIONS, COLL_EVIDENCE,
+                    COLL_PROFILES, COLL_STRATEGIES, DETERMINATION_OVERTURNED,
+                    DETERMINATION_UPHELD, EMBED_SOURCE, LEXICAL_INDEX, MIN_SAMPLE,
+                    SRC_DETERMINATION, SRC_FINDINGS, SRC_REF, VECTOR_INDEX)
 
 load_dotenv()
 client = MongoClient(os.environ["MONGODB_URI"])
-db = client[DB_NAME]
+db = client[os.environ.get("MONGODB_DB", "rebuttal")]
 
 app = FastAPI(title="Rebuttal")
 
@@ -45,7 +45,7 @@ def iso(d):
 
 
 def get_case(cid: str) -> dict:
-    case = db[CASES].find_one({"_id": ObjectId(cid)})
+    case = db[COLL_CASES].find_one({"_id": ObjectId(cid)})
     if not case:
         raise HTTPException(404, "case not found")
     return case
@@ -57,86 +57,107 @@ def deadlines_for(denial_date: datetime) -> dict:
             "external_review_due": internal + timedelta(days=120)}  # then external review
 
 
+def _search_head(query_text: str) -> list:
+    """First stages of the pipeline: vector search (auto-embedded text query) by
+    default; SEARCH_MODE=lexical swaps in an Atlas Search text stage if the
+    sandbox tier lacks automated embeddings."""
+    if os.environ.get("SEARCH_MODE", "vector") == "lexical":
+        return [
+            {"$search": {"index": LEXICAL_INDEX,
+                         "text": {"query": query_text, "path": EMBED_SOURCE}}},
+            {"$limit": 50},
+            {"$addFields": {"similarity": {"$meta": "searchScore"}}},
+        ]
+    return [
+        {"$vectorSearch": {"index": VECTOR_INDEX, "path": EMBED_SOURCE,
+                           "query": query_text, "exact": True, "limit": 50}},
+        {"$addFields": {"similarity": {"$meta": "vectorSearchScore"}}},
+    ]
+
+
 # ---------------------------------------------------------------- the product
 def rank_strategies(case: dict) -> dict:
-    """$vectorSearch -> exclusion $match -> per-strategy stats + evidence + provenance.
+    """search -> exclusion $match -> per-strategy stats + evidence + provenance.
 
-    The $match on failed strategy_ids is what makes this memory, not search:
+    The $match on failed strategy keys is what makes this memory, not search:
     the same denial letter ranks differently after a recorded loss.
     """
-    failed = db[ATTEMPTS].distinct(
-        "strategy_id", {"case_id": case["_id"], "outcome": OUTCOME_UPHELD})
+    failed = db[COLL_ATTEMPTS].distinct(
+        "strategy_id", {"case_id": case["_id"], "outcome": DETERMINATION_UPHELD})
 
     citations_map = {"$map": {
         "input": {"$slice": ["$source_rows", 3]}, "as": "r",
-        "in": {"ref": f"$$r.{RAW_REF_FIELD}",
-               "determination": f"$$r.{RAW_DETERMINATION_FIELD}",
+        "in": {"ref": f"$$r.{SRC_REF}",
+               "determination": f"$$r.{SRC_DETERMINATION}",
                "findings_excerpt": {"$substrCP": [
-                   {"$ifNull": [f"$$r.{RAW_FINDINGS_FIELD}", ""]}, 0, 240]}}}}
+                   {"$ifNull": [f"$$r.{SRC_FINDINGS}", ""]}, 0, 240]}}}}
 
-    pipeline = [
-        {"$vectorSearch": {"index": VECTOR_INDEX, "path": "search_text",
-                           "query": case["denial_text"][:4000],
-                           "exact": True, "limit": 50}},
-        {"$addFields": {"similarity": {"$meta": "vectorSearchScore"}}},
+    pipeline = _search_head(case["denial_text"][:4000]) + [
         {"$facet": {
             "strategies": [
-                {"$unwind": "$strategy_ids"},
-                {"$match": {"strategy_ids": {"$nin": failed}}},   # <-- the exclusion
-                {"$group": {"_id": "$strategy_ids",
+                {"$unwind": "$strategy_keys"},
+                {"$match": {"strategy_keys": {"$nin": failed}}},   # <-- the exclusion
+                {"$group": {"_id": "$strategy_keys",
                             "n": {"$sum": 1},
                             "overturns": {"$sum": {"$cond": [
-                                {"$eq": ["$outcome", OUTCOME_OVERTURNED]}, 1, 0]}},
+                                {"$eq": ["$determination", DETERMINATION_OVERTURNED]}, 1, 0]}},
                             "similarity": {"$avg": "$similarity"},
-                            "source_ids": {"$addToSet": "$source_id"}}},
+                            "source_ids": {"$addToSet": "$source_ref"}}},
                 {"$match": {"n": {"$gte": MIN_SAMPLE}}},
                 {"$addFields": {"overturn_rate": {"$divide": ["$overturns", "$n"]}}},
                 {"$sort": {"overturn_rate": -1, "n": -1}},
                 {"$limit": 5},
-                {"$lookup": {"from": IMR_DECISIONS, "localField": "source_ids",
-                             "foreignField": RAW_REF_FIELD, "as": "source_rows"}},
-                {"$lookup": {"from": STRATEGIES, "localField": "_id",
+                {"$lookup": {"from": COLL_DECISIONS, "localField": "source_ids",
+                             "foreignField": SRC_REF, "as": "source_rows"}},
+                {"$lookup": {"from": COLL_STRATEGIES, "localField": "_id",
                              "foreignField": "_id", "as": "info"}},
-                {"$unwind": "$info"},
+                {"$unwind": {"path": "$info", "preserveNullAndEmptyArrays": True}},
                 {"$addFields": {"citations": citations_map}},
                 {"$unset": ["source_rows", "source_ids"]},
             ],
             "evidence": [
-                {"$match": {"outcome": OUTCOME_OVERTURNED}},
-                {"$unwind": "$evidence_present"},
-                {"$group": {"_id": "$evidence_present", "in_overturned": {"$sum": 1}}},
+                {"$match": {"determination": DETERMINATION_OVERTURNED}},
+                {"$unwind": "$evidence_keys"},
+                {"$group": {"_id": "$evidence_keys", "in_overturned": {"$sum": 1}}},
                 {"$sort": {"in_overturned": -1}},
                 {"$limit": 8},
-                {"$lookup": {"from": EVIDENCE_TYPES, "localField": "_id",
+                {"$lookup": {"from": COLL_EVIDENCE, "localField": "_id",
                              "foreignField": "_id", "as": "info"}},
                 {"$unwind": {"path": "$info", "preserveNullAndEmptyArrays": True}},
             ],
             "overall": [
                 {"$group": {"_id": None, "n": {"$sum": 1},
                             "overturned": {"$sum": {"$cond": [
-                                {"$eq": ["$outcome", OUTCOME_OVERTURNED]}, 1, 0]}}}},
+                                {"$eq": ["$determination", DETERMINATION_OVERTURNED]}, 1, 0]}}}},
             ],
         }},
     ]
-    res = list(db[DENIAL_PROFILES].aggregate(pipeline))[0]
+    res = list(db[COLL_PROFILES].aggregate(pipeline))[0]
 
     overall = res["overall"][0] if res["overall"] else {"n": 0, "overturned": 0}
     have = set(case.get("evidence_have", []))
-    missing = next(
-        ({"evidence_id": e["_id"],
-          "name": e.get("info", {}).get("name", e["_id"]),
-          "description": e.get("info", {}).get("description", ""),
-          "seen_in_overturned": e["in_overturned"],
-          "overturned_total": overall["overturned"]}
-         for e in res["evidence"] if e["_id"] not in have), None)
 
-    strategies = [{"strategy_id": s["_id"], "name": s["info"]["name"],
-                   "description": s["info"]["description"],
-                   "example_phrasing": s["info"].get("example_phrasing", ""),
-                   "n": s["n"], "overturns": s["overturns"],
-                   "overturn_rate": round(s["overturn_rate"], 2),
-                   "citations": s.get("citations", [])}
-                  for s in res["strategies"]]
+    def _ev(e):
+        info = e.get("info") or {}
+        return {"evidence_id": e["_id"],
+                "name": info.get("name", e["_id"].replace("_", " ")),
+                "description": info.get("description", ""),
+                "seen_in_overturned": e["in_overturned"],
+                "overturned_total": overall["overturned"]}
+
+    missing = next((_ev(e) for e in res["evidence"] if e["_id"] not in have), None)
+
+    strategies = []
+    for s in res["strategies"]:
+        info = s.get("info") or {}
+        strategies.append(
+            {"strategy_id": s["_id"],
+             "name": info.get("name", s["_id"].replace("_", " ")),
+             "description": info.get("description", ""),
+             "example_phrasing": info.get("example_phrasing", ""),
+             "n": s["n"], "overturns": s["overturns"],
+             "overturn_rate": round(s["overturn_rate"], 2),
+             "citations": s.get("citations", [])})
 
     return {"similar_cases": overall["n"],
             "overall_overturn_rate": (round(overall["overturned"] / overall["n"], 2)
@@ -147,11 +168,12 @@ def rank_strategies(case: dict) -> dict:
 
 
 def excluded_details(case_id: ObjectId) -> list:
-    rows = list(db[ATTEMPTS].find({"case_id": case_id, "outcome": OUTCOME_UPHELD}))
-    names = {s["_id"]: s["name"] for s in db[STRATEGIES].find(
+    rows = list(db[COLL_ATTEMPTS].find({"case_id": case_id,
+                                        "outcome": DETERMINATION_UPHELD}))
+    names = {s["_id"]: s.get("name", s["_id"]) for s in db[COLL_STRATEGIES].find(
         {"_id": {"$in": [r["strategy_id"] for r in rows]}})}
     return [{"strategy_id": r["strategy_id"],
-             "name": names.get(r["strategy_id"], r["strategy_id"]),
+             "name": names.get(r["strategy_id"], r["strategy_id"].replace("_", " ")),
              "recorded_at": r["recorded_at"].isoformat()} for r in rows]
 
 
@@ -159,9 +181,11 @@ def excluded_details(case_id: ObjectId) -> list:
 def compose_letter(case: dict, strategy: dict, missing) -> str:
     """Deterministic letter composer — every sentence is driven by stored state:
     the top non-excluded strategy, its live track record, the user's evidence
-    list, and the computed deadline. (LLM drafting was cut for time.)"""
-    evidence_names = {e["_id"]: e["name"] for e in db[EVIDENCE_TYPES].find()}
-    have = [evidence_names.get(s, s) for s in case.get("evidence_have", [])]
+    list, and the computed deadline."""
+    evidence_names = {e["_id"]: e.get("name", e["_id"]) for e in db[COLL_EVIDENCE].find()}
+    have = [evidence_names.get(k, k.replace("_", " ")) for k in case.get("evidence_have", [])]
+    basis = (strategy.get("example_phrasing") or strategy.get("description")
+             or strategy["name"])
     lines = [
         f"Date: {utcnow().strftime('%B %d, %Y')}",
         "",
@@ -174,7 +198,7 @@ def compose_letter(case: dict, strategy: dict, missing) -> str:
          f"This appeal is filed within my appeal window, which runs through "
          f"{iso(case['deadlines']['internal_appeal_due'])}."),
         "",
-        f"The central basis of this appeal: {strategy['example_phrasing']} "
+        f"The central basis of this appeal: {basis} "
         "The clinical record accompanying this appeal supports this argument in my case.",
         (f"In {strategy['n']} comparable cases reviewed under California's Independent "
          f"Medical Review program, this argument prevailed in {strategy['overturns']} — "
@@ -205,29 +229,29 @@ def do_draft(case: dict) -> dict:
         raise HTTPException(409, "no strategies left — every known argument has been excluded")
     top = ranked["strategies"][0]
     letter = compose_letter(case, top, ranked["missing_evidence"])
-    db[ATTEMPTS].insert_one({"case_id": case["_id"], "strategy_id": top["strategy_id"],
-                             "stage": case["stage"], "outcome": "pending",
-                             "recorded_at": utcnow(), "letter": letter})
-    db[CASES].update_one({"_id": case["_id"]}, {"$set": {"stage": "drafted"}})
+    db[COLL_ATTEMPTS].insert_one({"case_id": case["_id"], "strategy_id": top["strategy_id"],
+                                  "stage": case["stage"], "outcome": "pending",
+                                  "recorded_at": utcnow(), "letter": letter})
+    db[COLL_CASES].update_one({"_id": case["_id"]}, {"$set": {"stage": "drafted"}})
     return {"strategy": top, "letter": letter}
 
 
 def resolve_pending(case: dict, outcome: str) -> str:
     """Record how the latest filed appeal landed. The write that makes memory."""
-    attempt = db[ATTEMPTS].find_one({"case_id": case["_id"], "outcome": "pending"},
-                                    sort=[("recorded_at", -1)])
+    attempt = db[COLL_ATTEMPTS].find_one({"case_id": case["_id"], "outcome": "pending"},
+                                         sort=[("recorded_at", -1)])
     if not attempt:
         raise HTTPException(409, "no pending attempt to record an outcome for")
-    db[ATTEMPTS].update_one({"_id": attempt["_id"]},
-                            {"$set": {"outcome": outcome, "resolved_at": utcnow()}})
+    db[COLL_ATTEMPTS].update_one({"_id": attempt["_id"]},
+                                 {"$set": {"outcome": outcome, "resolved_at": utcnow()}})
     # cross-user learning: this strategy's rolling stats move for EVERYONE
-    db[STRATEGIES].update_one(
+    db[COLL_STRATEGIES].update_one(
         {"_id": attempt["strategy_id"]},
         {"$inc": {"stats.attempts": 1,
-                  "stats.overturns": 1 if outcome == OUTCOME_OVERTURNED else 0}})
-    db[CASES].update_one(
+                  "stats.overturns": 1 if outcome == DETERMINATION_OVERTURNED else 0}})
+    db[COLL_CASES].update_one(
         {"_id": case["_id"]},
-        {"$set": {"stage": "won" if outcome == OUTCOME_OVERTURNED else "responded"}})
+        {"$set": {"stage": "won" if outcome == DETERMINATION_OVERTURNED else "responded"}})
     return attempt["strategy_id"]
 
 
@@ -239,8 +263,8 @@ def home():
 
 @app.get("/api/meta")
 def meta():
-    return {"evidence_types": list(db[EVIDENCE_TYPES].find()),
-            "strategies": list(db[STRATEGIES].find())}
+    return {"evidence_types": list(db[COLL_EVIDENCE].find()),
+            "strategies": list(db[COLL_STRATEGIES].find())}
 
 
 @app.post("/api/case")
@@ -250,7 +274,7 @@ def create_case(body: CaseIn):
     doc = {"created_at": utcnow(), "denial_text": body.denial_text,
            "denial_date": denial_date, "evidence_have": body.evidence_have,
            "stage": "intake", "deadlines": deadlines_for(denial_date)}
-    cid = db[CASES].insert_one(doc).inserted_id
+    cid = db[COLL_CASES].insert_one(doc).inserted_id
     return {"case_id": str(cid),
             "deadlines": {k: iso(v) for k, v in doc["deadlines"].items()}}
 
@@ -273,7 +297,7 @@ def draft(cid: str):
 
 @app.post("/api/case/{cid}/outcome")
 def record_outcome(cid: str, body: OutcomeIn):
-    if body.outcome not in (OUTCOME_UPHELD, OUTCOME_OVERTURNED):
+    if body.outcome not in (DETERMINATION_UPHELD, DETERMINATION_OVERTURNED):
         raise HTTPException(422, "outcome must be 'upheld' or 'overturned'")
     strategy_id = resolve_pending(get_case(cid), body.outcome)
     return {"case_id": cid, "recorded": body.outcome, "strategy_id": strategy_id}
