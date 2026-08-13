@@ -2,6 +2,10 @@
 <html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Rebuttal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
+
 <style>
   :root{
     --ink:#141514; --paper:#ffffff; --mint:#9df1c6; --gray:#d8d8d5;
@@ -120,8 +124,72 @@
     header{grid-template-columns:60px 1fr}
     .toggle,.hcta{display:none}
   }
+
+  /* ---- intro overlay (Rebuttal blueprint) ---- */
+  :root {
+    --stage:    #ffffff;
+    --final:    #141514;
+    --crest:    #9df1c6;
+    --guide:    #57d6a2;
+    --stroke:   #3A3A3A;
+  }
+  /* ---------- intro overlay ---------- */
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--stage);
+    display: grid;
+    place-items: center;
+    z-index: 10;
+    will-change: opacity, transform;
+  }
+  #stage { display: block; width: 100%; height: 100%; }
+
+  /* skeletal letterform outline */
+  #outlinePath {
+    fill: none;
+    stroke: var(--stroke);
+    stroke-width: 1.4;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  /* blueprint guide system */
+  .gl-line    { stroke: var(--guide); stroke-width: 1; shape-rendering: crispEdges; }
+  .gl-square  { fill: var(--crest); }
+  .gl-circle  { fill: none; stroke: var(--crest); stroke-width: 1.5; }
+  .gl-corner  { fill: none; stroke: var(--guide); stroke-width: 1; }
+
+  .blackBody { fill: var(--final); }
+  .blueCrest { fill: var(--crest); }
+
+  #overlay{cursor:pointer;z-index:999;background:#ffffff}
+  .intro-lock{overflow:hidden}
 </style></head>
 <body>
+<!-- ===== intro overlay ===== -->
+  <div id="overlay">
+    <svg id="stage" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <clipPath id="wordClip"><path id="clipPath" d=""></path></clipPath>
+        <clipPath id="drainClip"><rect id="drainRect" x="0" y="0" width="0" height="0"></rect></clipPath>
+      </defs>
+      <g id="wordGroup" clip-path="url(#drainClip)">
+        <g id="liquid" clip-path="url(#wordClip)">
+          <path class="blueCrest" id="blueCrest" d=""></path>
+          <path class="blackBody" id="blackBody" d=""></path>
+        </g>
+        <path id="outlinePath" d=""></path>
+        <g id="guides">
+          <g id="glines"></g>
+          <g id="ganchors"></g>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+
 <div class="frame">
 
   <header>
@@ -307,5 +375,392 @@ async function outcome(o){
   else { $('headline').innerHTML =
     'Denial <span class="m">overturned</span>. Recorded — the next patient\'s ranking just got smarter.'; }
 }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  document.body.classList.add("intro-lock");
+
+  // ---- configurable ----
+  const WORD = "REBUTTAL";
+  const FONT_URL = "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/anton/Anton-Regular.ttf";
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const svg       = document.getElementById("stage");
+  const overlay   = document.getElementById("overlay");
+  const outlineEl = document.getElementById("outlinePath");
+  const clipEl    = document.getElementById("clipPath");
+  const glines    = document.getElementById("glines");
+  const ganchors  = document.getElementById("ganchors");
+  const guides    = document.getElementById("guides");
+  const drainRect = document.getElementById("drainRect");
+  const blueCrest = document.getElementById("blueCrest");
+  const blackBody = document.getElementById("blackBody");
+  const wordGroup = document.getElementById("wordGroup");
+
+  let FONT = null;
+
+  // ---- timeline (seconds) ----
+  const T = {
+    drawStart: 0.0,  drawTotal: 1.6,                      // contour + blueprint build
+    fillStart: 1.9,  fillDur: 2.4,                        // liquid rise -> 4.3
+    guideFadeStart: 2.3, guideFadeDur: 1.3,               // -> 3.6
+    holdStart: 4.6,  holdDur: 0.6,                        // -> 5.2
+    drainStart: 5.2, drainDur: 0.6,                       // -> 5.8
+    exitStart: 5.45, exitDur: 0.5,
+    end: 6.05
+  };
+
+  // ---- easing ----
+  const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+  function cubicBezier(p1x, p1y, p2x, p2y) {
+    const cx = 3*p1x, bx = 3*(p2x-p1x)-cx, ax = 1-cx-bx;
+    const cy = 3*p1y, by = 3*(p2y-p1y)-cy, ay = 1-cy-by;
+    const fx = t => ((ax*t+bx)*t+cx)*t;
+    const dfx = t => (3*ax*t+2*bx)*t+cx;
+    const fy = t => ((ay*t+by)*t+cy)*t;
+    return function (x) {
+      x = clamp01(x);
+      let t = x;
+      for (let i=0;i<6;i++){ const d=dfx(t); if(Math.abs(d)<1e-6)break; t -= (fx(t)-x)/d; t=clamp01(t); }
+      return fy(t);
+    };
+  }
+  const easeDraw = cubicBezier(0.22, 1, 0.36, 1);
+  const easeFill = cubicBezier(0.65, 0, 0.35, 1);
+  const easeIn   = cubicBezier(0.55, 0, 1, 1);
+  const smooth = (a,b,x) => { const t = clamp01((x-a)/(b-a)); return t*t*(3-2*t); };
+
+  const mk = (parent, tag, attrs) => {
+    const e = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e);
+    return e;
+  };
+
+  let geom = null;
+  let markerEls = [];   // {el, tx}
+
+  // ---------- glyph-vertex analysis ----------
+  // Walk one contour's commands, return on-curve nodes with classification.
+  function analyzeContour(cmds) {
+    // build segment list (absolute coords already)
+    let startX, startY, curX, curY;
+    const segs = [];
+    let hasCurve = false;
+    for (const c of cmds) {
+      if (c.type === "M") { startX = curX = c.x; startY = curY = c.y; }
+      else if (c.type === "L") { segs.push({t:"L", x0:curX, y0:curY, x:c.x, y:c.y}); curX=c.x; curY=c.y; }
+      else if (c.type === "C") { segs.push({t:"C", x0:curX, y0:curY, x1:c.x1,y1:c.y1, x2:c.x2,y2:c.y2, x:c.x, y:c.y}); curX=c.x; curY=c.y; hasCurve=true; }
+      else if (c.type === "Q") { segs.push({t:"Q", x0:curX, y0:curY, x1:c.x1,y1:c.y1, x:c.x, y:c.y}); curX=c.x; curY=c.y; hasCurve=true; }
+      else if (c.type === "Z") { if (Math.hypot(curX-startX, curY-startY) > 0.01) segs.push({t:"L", x0:curX, y0:curY, x:startX, y:startY}); curX=startX; curY=startY; }
+    }
+    const n = segs.length;
+    if (n === 0) return { nodes: [], hasCurve };
+    const endTan = s => s.t === "C" ? [s.x-s.x2, s.y-s.y2] : s.t === "Q" ? [s.x-s.x1, s.y-s.y1] : [s.x-s.x0, s.y-s.y0];
+    const startTan = s => (s.t === "C" || s.t === "Q") ? [s.x1-s.x0, s.y1-s.y0] : [s.x-s.x0, s.y-s.y0];
+    const norm = v => { const m = Math.hypot(v[0],v[1])||1; return [v[0]/m, v[1]/m]; };
+    const nodes = [];
+    for (let i = 0; i < n; i++) {
+      const seg = segs[i], prev = segs[(i-1+n)%n];
+      const tin = norm(endTan(prev)), tout = norm(startTan(seg));
+      const dot = clamp01v(tin[0]*tout[0] + tin[1]*tout[1]);
+      const ang = Math.acos(dot) * 180/Math.PI;        // turn at this node
+      nodes.push({ x:seg.x0, y:seg.y0, ang, curveSide: (prev.t!=="L"||seg.t!=="L") });
+    }
+    return { nodes, hasCurve };
+  }
+  function clamp01v(v){ return v<-1?-1:v>1?1:v; }
+
+  function buildMarkers(allContours) {
+    const squares = [], circles = [];
+    for (const cmds of allContours) {
+      const { nodes } = analyzeContour(cmds);
+      if (!nodes.length) continue;
+      // corner nodes -> squares
+      const cornerIdx = new Set();
+      nodes.forEach((nd, i) => { if (nd.ang > 32) { squares.push([nd.x, nd.y]); cornerIdx.add(i); } });
+      // extrema of the contour -> circles (top/bottom/left/right on-curve points)
+      let iT=0,iB=0,iL=0,iR=0;
+      nodes.forEach((nd,i) => {
+        if (nd.y < nodes[iT].y) iT=i;
+        if (nd.y > nodes[iB].y) iB=i;
+        if (nd.x < nodes[iL].x) iL=i;
+        if (nd.x > nodes[iR].x) iR=i;
+      });
+      [iT,iB,iL,iR].forEach(i => {
+        if (cornerIdx.has(i)) return;            // a sharp corner stays a square
+        const nd = nodes[i];
+        if (!nd.curveSide) return;               // only round extrema get circles
+        circles.push([nd.x, nd.y]);
+      });
+    }
+    return { squares: dedupe(squares), circles: dedupe(circles) };
+  }
+  function dedupe(pts){
+    const out = [];
+    for (const p of pts){ if (!out.some(q => Math.hypot(q[0]-p[0], q[1]-p[1]) < 6)) out.push(p); }
+    return out;
+  }
+
+  // ---------- layout ----------
+  function layout() {
+    const W = window.innerWidth, H = window.innerHeight;
+    svg.setAttribute("width", W);
+    svg.setAttribute("height", H);
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    markerEls = [];
+    glines.innerHTML = "";
+    ganchors.innerHTML = "";
+
+    if (FONT) layoutFromFont(W, H);
+    else      layoutFallback(W, H);
+  }
+
+  function layoutFromFont(W, H) {
+    const cx = W/2, ls = -0.02;                    // letter-spacing in em
+    const upm = FONT.unitsPerEm;
+    const glyphs = WORD.split("").map(ch => FONT.charToGlyph(ch));
+    const advUnits = glyphs.reduce((s,g) => s + g.advanceWidth, 0);
+    const target = 0.55 * W;
+    // width(fs) = fs*(advUnits/upm) + ls*fs*(n-1)  ->  solve for fs
+    const fontSize = target / (advUnits/upm + ls*(WORD.length-1));
+    const scale = fontSize/upm;
+    const lsPx = ls*fontSize;
+
+    // cap height
+    const capUnits = (FONT.tables.os2 && FONT.tables.os2.sCapHeight) ? FONT.tables.os2.sCapHeight : upm*0.7;
+
+    // 1st pass measure total width, vertical centering target
+    let totalW = 0;
+    glyphs.forEach((g,i) => { totalW += g.advanceWidth*scale + (i<glyphs.length-1?lsPx:0); });
+    const startX = cx - totalW/2;
+    const capPx = capUnits*scale;
+    const baseY = H/2 + capPx/2;                   // center caps vertically
+
+    // build combined outline path + collect contours + glyph boundaries
+    let dCombined = "";
+    const contours = [];
+    const bounds = [startX];
+    let penX = startX;
+    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+
+    glyphs.forEach((g, gi) => {
+      const p = g.getPath(penX, baseY, fontSize);
+      dCombined += p.toPathData(2) + " ";
+      // split this glyph's commands into contours (by M)
+      let cur = null;
+      p.commands.forEach(c => {
+        if (c.type === "M") { if (cur) contours.push(cur); cur = [c]; }
+        else if (cur) cur.push(c);
+        ["x","x1","x2"].forEach(k => { if (c[k]!=null){ minX=Math.min(minX,c[k]); maxX=Math.max(maxX,c[k]); } });
+        ["y","y1","y2"].forEach(k => { if (c[k]!=null){ minY=Math.min(minY,c[k]); maxY=Math.max(maxY,c[k]); } });
+      });
+      if (cur) contours.push(cur);
+      penX += g.advanceWidth*scale + (gi<glyphs.length-1?lsPx:0);
+      bounds.push(penX);
+    });
+
+    outlineEl.setAttribute("d", dCombined);
+    clipEl.setAttribute("d", dCombined);
+
+    const capTop = minY, bottom = maxY, x0 = minX, x1 = maxX, wordW = x1 - x0;
+
+    buildBlueprint({ W, H, x0, x1, capTop, baseY, bottom, bounds, fontSize, wordW });
+
+    const len = outlineEl.getTotalLength();
+    outlineEl.style.strokeDasharray = len;
+    outlineEl.style.strokeDashoffset = len;
+
+    // markers from REAL vertices
+    const { squares, circles } = buildMarkers(contours);
+    const S = 8;
+    squares.forEach(([x,y]) => {
+      const el = mk(ganchors, "rect", { class:"gl-square", x:x-S/2, y:y-S/2, width:S, height:S });
+      markerEls.push({ el, tx:(x-x0)/wordW });
+    });
+    circles.forEach(([x,y]) => {
+      const el = mk(ganchors, "circle", { class:"gl-circle", cx:x, cy:y, r:11 });
+      markerEls.push({ el, tx:(x-x0)/wordW });
+    });
+
+    setGeom(W, H, cx, x0, x1, capTop, baseY, bottom, wordW, fontSize, len);
+  }
+
+  // simple fallback (no opentype) — keeps the piece working
+  function layoutFallback(W, H) {
+    const cx = W/2;
+    const t = mk(clipEl.parentNode.parentNode, "text", {}); // not used; build text-based clip instead
+    // use a <text> for clip + outline
+    clipEl.removeAttribute("d");
+    const fs = 0.18 * W;
+    const tx = (parent) => {
+      const e = mk(parent, "text", { x:cx, y:H/2, "text-anchor":"middle", "font-size":fs,
+        "font-family":"Anton, sans-serif", "letter-spacing":"-0.02em" });
+      e.textContent = WORD; return e;
+    };
+    const ct = tx(document.getElementById("wordClip"));
+    const bb = ct.getBBox();
+    const dy = H/2 - (bb.y + bb.height/2);
+    ct.setAttribute("y", H/2 + dy);
+    const bb2 = ct.getBBox();
+    outlineEl.style.display = "none";
+    const ot = tx(document.getElementById("wordGroup"));
+    ot.setAttribute("y", H/2 + dy);
+    ot.setAttribute("fill", "none"); ot.setAttribute("stroke", "var(--stroke)"); ot.setAttribute("stroke-width", 1.4);
+    ot.id = "outlinePath";
+    const baseY = H/2 + dy, capTop = bb2.y, bottom = bb2.y+bb2.height, x0=bb2.x, x1=bb2.x+bb2.width;
+    buildBlueprint({ W, H, x0, x1, capTop, baseY, bottom, bounds:[x0,x1], fontSize:fs, wordW:bb2.width });
+    setGeom(W,H,cx,x0,x1,capTop,baseY,bottom,bb2.width,fs,0);
+    t.remove();
+  }
+
+  function buildBlueprint({ W, H, x0, x1, capTop, baseY, bottom, bounds, fontSize, wordW }) {
+    const padX = Math.max(40, fontSize*0.16);
+    const overTop = fontSize*0.20, overBot = fontSize*0.22;
+    // cap-height + baseline horizontals (extend well past the word)
+    mk(glines, "line", { class:"gl-line", x1:x0-padX, y1:capTop, x2:x1+padX, y2:capTop });
+    mk(glines, "line", { class:"gl-line", x1:x0-padX, y1:baseY,  x2:x1+padX, y2:baseY  });
+    // vertical sidebearing guides at every glyph boundary
+    bounds.forEach(bx => {
+      mk(glines, "line", { class:"gl-line", x1:bx, y1:capTop-overTop, x2:bx, y2:baseY+overBot });
+    });
+    // outer frame verticals just past the word
+    mk(glines, "line", { class:"gl-line", x1:x0-padX, y1:capTop-overTop, x2:x0-padX, y2:baseY+overBot });
+    mk(glines, "line", { class:"gl-line", x1:x1+padX, y1:capTop-overTop, x2:x1+padX, y2:baseY+overBot });
+    // small right-angle corner markers (top-left, bottom-right)
+    const c = 16;
+    mk(glines, "rect", { class:"gl-corner", x:x0-padX, y:capTop, width:c, height:c });
+    mk(glines, "rect", { class:"gl-corner", x:x1+padX-c, y:baseY-c, width:c, height:c });
+  }
+
+  function setGeom(W,H,cx,x0,x1,capTop,baseY,bottom,wordW,fontSize,len){
+    const wavelength = 0.30 * wordW;
+    const AMP  = Math.max(12, fontSize*0.10);
+    const GAP0 = Math.max(90, fontSize*0.55);
+    drainRect.setAttribute("x",0); drainRect.setAttribute("y",0);
+    drainRect.setAttribute("width",W); drainRect.setAttribute("height",H);
+    geom = { W,H,cx,x0,x1,capTop,baseY,bottom,wordW,fontSize,wavelength,AMP,GAP0,len };
+  }
+
+  function surfacePath(level, amp, phase, x0, x1, bottom, wavelength) {
+    const step = 7;
+    let d = `M ${x0} ${bottom} L ${x0} ${(level + amp*Math.sin(phase)).toFixed(2)}`;
+    for (let x = x0; x <= x1; x += step) {
+      const y = level + amp * Math.sin((x - x0) / wavelength * 2*Math.PI + phase);
+      d += ` L ${x.toFixed(2)} ${y.toFixed(2)}`;
+    }
+    d += ` L ${x1} ${(level + amp*Math.sin((x1-x0)/wavelength*2*Math.PI + phase)).toFixed(2)}`;
+    d += ` L ${x1} ${bottom} Z`;
+    return d;
+  }
+
+  // ---- frame ----
+  function render(time) {
+    const g = geom;
+    const fillHeight = g.bottom - g.capTop;
+
+    // PHASE 1 — contour draw
+    const dprog = easeDraw(clamp01((time - T.drawStart) / T.drawTotal));
+    if (g.len) outlineEl.style.strokeDashoffset = g.len * (1 - dprog);
+
+    // blueprint reveal: lines fade in fast, anchors pop as the sweep passes them
+    const guideFade = 1 - smooth(T.guideFadeStart, T.guideFadeStart + T.guideFadeDur, time);
+    glines.style.opacity = (clamp01(time/0.30) * guideFade * 0.92).toFixed(3);
+    ganchors.style.opacity = guideFade.toFixed(3);
+    for (const m of markerEls) {
+      m.el.style.opacity = clamp01((dprog - m.tx) / 0.05).toFixed(3);
+    }
+
+    // PHASE 2/3 — liquid rise
+    let pRaw = clamp01((time - T.fillStart) / T.fillDur);
+    if (time < T.fillStart) pRaw = 0;
+    const p = easeFill(pRaw);
+    const phase = time * 3.0;
+    const ampNow = g.AMP * (1 - smooth(0.72, 1.0, p));
+    const gap = g.GAP0 * (1 - p);
+    const blueLevel  = g.bottom - p * fillHeight;
+    const blackLevel = Math.min(g.bottom, blueLevel + gap);
+    const drawBottom = g.bottom + g.AMP + 4;
+    if (p <= 0) { blueCrest.setAttribute("d",""); blackBody.setAttribute("d",""); }
+    else {
+      blueCrest.setAttribute("d", surfacePath(blueLevel,  ampNow, phase,       g.x0-2, g.x1+2, drawBottom, g.wavelength));
+      blackBody.setAttribute("d", surfacePath(blackLevel, ampNow, phase + 0.6, g.x0-2, g.x1+2, drawBottom, g.wavelength));
+    }
+
+    // outline merges into solid fill
+    outlineEl.style.opacity = (1 - 0.7 * smooth(2.2, 4.0, time)).toFixed(3);
+
+    // PHASE 4 — settle bounce
+    let bounce = 0;
+    if (time >= T.holdStart && time < T.holdStart + 0.32) {
+      const bt = (time - T.holdStart) / 0.32;
+      bounce = Math.sin(bt * Math.PI) * -2 * (1 - bt);
+    }
+    wordGroup.style.transform = `translateY(${bounce.toFixed(2)}px)`;
+
+    // PHASE 5 — drain out the bottom
+    const dp = easeIn(clamp01((time - T.drainStart) / T.drainDur));
+    const edgeY = g.capTop - 4 + dp * (g.bottom - g.capTop + 8);
+    drainRect.setAttribute("y", edgeY);
+    drainRect.setAttribute("height", Math.max(0, g.H - edgeY));
+
+    const ep = clamp01((time - T.exitStart) / T.exitDur);
+    overlay.style.opacity = (1 - ep).toFixed(3);
+    overlay.style.transform = `translateY(${(ep * 2).toFixed(2)}%)`;
+  }
+
+  let finished = false;
+  function finish() {
+    if (finished) return; finished = true;
+    overlay.style.opacity = 0;
+    overlay.style.pointerEvents = "none";
+    document.body.classList.remove("intro-lock");
+    setTimeout(() => { overlay.style.display = "none"; }, 700);
+  }
+  overlay.addEventListener("click", finish);
+
+  window.__seek = function (t) { if (!geom) layout(); render(t); };
+
+  function play() {
+    layout();
+    if (reduced) {
+      if (geom.len) outlineEl.style.strokeDashoffset = 0;
+      guides.style.opacity = 0;
+      outlineEl.style.opacity = 0.4;
+      blackBody.setAttribute("d", surfacePath(geom.capTop, 0, 0, geom.x0-2, geom.x1+2, geom.bottom + geom.AMP, geom.wavelength));
+      overlay.style.transition = "opacity .6s ease";
+      setTimeout(() => { overlay.style.opacity = 0; setTimeout(finish, 650); }, 900);
+      return;
+    }
+    const start = performance.now();
+    function loop(now) {
+      if (finished) return;
+      const t = (now - start) / 1000;
+      render(Math.min(t, T.end));
+      if (t < T.end) requestAnimationFrame(loop);
+      else finish();
+    }
+    requestAnimationFrame(loop);
+  }
+
+  const DEBUG = location.search.indexOf("debug") !== -1;
+  function start() { if (DEBUG) layout(); else play(); }
+
+  // load real Anton outlines, then go (fallback to text if it fails)
+  if (window.opentype && opentype.load) {
+    let started = false;
+    const go = () => { if (!started) { started = true; start(); } };
+    opentype.load(FONT_URL, function (err, font) {
+      if (!err && font) FONT = font;
+      go();
+    });
+    setTimeout(go, 6000); // safety net if CDN stalls
+  } else {
+    start();
+  }
+})();
 </script>
 </body></html>
