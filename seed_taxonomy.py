@@ -19,7 +19,9 @@ def main():
         sys.exit("MONGODB_URI missing")
     db = MongoClient(uri, serverSelectionTimeoutMS=15000)[db_name]
     for coll_name, docs in ((COLL_STRATEGIES, STRATEGIES), (COLL_EVIDENCE, EVIDENCE_TYPES)):
-        ops = [ReplaceOne({"key": d["key"]}, d, upsert=True) for d in docs]
+        # _id == key so the ranking pipeline's $lookup (foreignField _id) resolves
+        ops = [ReplaceOne({"_id": d["key"]}, {"_id": d["key"], **d}, upsert=True)
+               for d in docs]
         db[coll_name].bulk_write(ops, ordered=False)
         print(f"{coll_name}: {len(docs)} keys, count={db[coll_name].count_documents({})}")
 
