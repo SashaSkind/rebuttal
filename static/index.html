@@ -116,6 +116,18 @@
   .fmint{display:flex;flex-direction:column;justify-content:space-between}
   .fmint .big{font-size:clamp(28px,3vw,44px);font-weight:600;letter-spacing:-.02em;max-width:16ch}
 
+  /* upload + evidence chips */
+  .drop{border:1.5px dashed var(--ink);padding:30px;text-align:center;cursor:pointer;
+        margin-bottom:16px;transition:background .15s}
+  .drop:hover{background:#f4fdf8}
+  .drop.hot{background:var(--mint);border-style:solid}
+  .drop.ok{background:var(--mint);border-style:solid;text-align:left}
+  .chip{font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.05em;
+        text-transform:uppercase;border:1px solid var(--ink);background:transparent;
+        padding:8px 12px;cursor:pointer;color:var(--ink)}
+  .chip:hover{background:#eafcf3}
+  .chip.on{background:var(--mint)}
+
   #results,#draftbox{display:none}
   @media(max-width:960px){
     .hero,.band,.controls,.stats,.outrow,.foot{grid-template-columns:1fr}
@@ -222,20 +234,28 @@
   </div>
 
   <div class="grid" id="app" style="grid-template-columns:280px 1fr">
-    <div class="cell label"><span class="sq"></span><span class="mono">Paste the denial letter</span></div>
-    <div class="cell"><textarea id="letter" placeholder="PASTE THE DENIAL LETTER HERE…"></textarea></div>
+    <div class="cell label"><span class="sq"></span><span class="mono">01 — The denial letter</span></div>
+    <div class="cell">
+      <div id="drop" class="drop">
+        <input type="file" id="pdf" accept="application/pdf,.pdf" hidden>
+        <div class="mono" id="dropmsg">Drop the denial letter PDF here — or click to choose the file</div>
+      </div>
+      <textarea id="letter" placeholder="…OR PASTE THE LETTER TEXT HERE"></textarea>
+    </div>
   </div>
 
   <div class="grid controls">
     <div class="cell">
-      <div class="label"><span class="sq"></span><span class="mono">Denial date</span></div>
+      <div class="label"><span class="sq"></span><span class="mono">02 — Denial date</span></div>
       <input type="date" id="ddate">
+      <div class="mono dim" style="margin-top:10px">Auto-detected from the PDF when possible</div>
     </div>
     <div class="cell">
-      <div class="label"><span class="sq"></span><span class="mono">Evidence you already have</span></div>
+      <div class="label"><span class="sq"></span><span class="mono">03 — Evidence you already have</span></div>
+      <div class="mono dim" style="margin-top:6px">Tap everything you can attach — it drives the missing-document callout</div>
       <div id="evlist"></div>
     </div>
-    <button class="bigbtn" id="go" onclick="analyze()">Analyze this denial <span>→</span></button>
+    <button class="bigbtn" id="go" onclick="analyze()" disabled>Analyze this denial <span>→</span></button>
   </div>
 
   <div id="results">
@@ -299,15 +319,60 @@ async function api(path, body){
   return r.json();
 }
 
-(async () => {   // evidence checkboxes from the catalog
+(async () => {   // evidence chips from the catalog (deduped by display name)
   const meta = await (await fetch('/api/meta')).json();
-  $('evlist').innerHTML = meta.evidence_types.map(e =>
-    `<label><input type="checkbox" value="${e._id}">${e.name}</label>`).join('');
+  const seen = new Set();
+  const items = meta.evidence_types.filter(e => {
+    const k = (e.name || e._id).toLowerCase().trim();
+    if (seen.has(k)) return false; seen.add(k); return true;
+  });
+  $('evlist').innerHTML = items.map(e =>
+    `<button type="button" class="chip" data-k="${e._id}" title="${e.description || ''}">${e.name}</button>`).join('');
+  $('evlist').addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (c) c.classList.toggle('on');
+  });
 })();
 
+function checkReady(){ $('go').disabled = !$('letter').value.trim(); }
+$('letter').addEventListener('input', checkReady);
+
+const dropEl = $('drop'), pdfEl = $('pdf');
+dropEl.addEventListener('click', () => pdfEl.click());
+['dragover','dragenter'].forEach(ev => dropEl.addEventListener(ev, e => {
+  e.preventDefault(); dropEl.classList.add('hot'); }));
+['dragleave','drop'].forEach(ev => dropEl.addEventListener(ev, e => {
+  e.preventDefault(); dropEl.classList.remove('hot'); }));
+dropEl.addEventListener('drop', e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) ingestPdf(f);
+});
+pdfEl.addEventListener('change', () => { if (pdfEl.files[0]) ingestPdf(pdfEl.files[0]); });
+
+async function ingestPdf(f){
+  $('dropmsg').textContent = 'READING ' + f.name.toUpperCase() + '…';
+  const fd = new FormData(); fd.append('file', f);
+  const r = await fetch('/api/extract_pdf', {method: 'POST', body: fd});
+  if(!r.ok){
+    $('dropmsg').textContent = 'COULD NOT READ THAT PDF — PASTE THE TEXT BELOW INSTEAD';
+    return;
+  }
+  const d = await r.json();
+  $('letter').value = d.text;
+  if (d.detected_date) $('ddate').value = d.detected_date;
+  dropEl.classList.add('ok');
+  $('dropmsg').textContent = '■ ' + f.name.toUpperCase() + ' — ' + d.pages +
+    (d.pages > 1 ? ' PAGES' : ' PAGE') +
+    (d.detected_date ? ' · DENIAL DATE ' + d.detected_date : '') +
+    ' · TEXT EXTRACTED — EDIT BELOW IF NEEDED';
+  checkReady();
+}
+
 async function analyze(){
+  const goEl = $('go'), goHtml = goEl.innerHTML;
+  goEl.disabled = true; goEl.innerHTML = 'Analyzing against real IMR cases…';
+  try{
   if(!caseId){
-    const have = [...document.querySelectorAll('#evlist input:checked')].map(c => c.value);
+    const have = [...document.querySelectorAll('#evlist .chip.on')].map(c => c.dataset.k);
     const c = await api('/api/case', {denial_text: $('letter').value,
                                       denial_date: $('ddate').value || null,
                                       evidence_have: have});
@@ -356,17 +421,19 @@ async function analyze(){
       </div>
     </div>`).join('');
   $('results').scrollIntoView({behavior:'smooth'});
+  } finally { goEl.innerHTML = goHtml; goEl.disabled = !$('letter').value.trim(); }
 }
 
 async function draft(){
-  $('draftbtn').disabled = true;
+  const dEl = $('draftbtn'), dHtml = dEl.innerHTML;
+  dEl.disabled = true; dEl.innerHTML = 'Drafting the appeal…';
   try{
     const d = await api(`/api/case/${caseId}/draft`);
     $('draftbox').style.display = 'block';
     $('usedstrat').textContent = d.strategy.name;
     $('draft').textContent = d.letter;
     $('draftbox').scrollIntoView({behavior:'smooth'});
-  } finally { $('draftbtn').disabled = false; }
+  } finally { dEl.innerHTML = dHtml; dEl.disabled = false; }
 }
 
 async function outcome(o){

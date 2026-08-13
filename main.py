@@ -4,12 +4,13 @@ Outcome data: California DMHC Independent Medical Review records (CHHS Open
 Data Portal). Noncommercial use. Not legal or medical advice.
 """
 import os
+import re
 from datetime import datetime, timedelta
 from typing import Optional
 
 from bson import ObjectId
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from pymongo import MongoClient
@@ -333,6 +334,38 @@ def home():
 def meta():
     return {"evidence_types": list(db[COLL_EVIDENCE].find()),
             "strategies": list(db[COLL_STRATEGIES].find())}
+
+
+DATE_PATTERNS = [
+    (r"([A-Z][a-z]+ \d{1,2}, \d{4})", "%B %d, %Y"),
+    (r"(\d{1,2}/\d{1,2}/\d{4})", "%m/%d/%Y"),
+    (r"(\d{4}-\d{2}-\d{2})", "%Y-%m-%d"),
+]
+
+
+@app.post("/api/extract_pdf")
+async def extract_pdf(file: UploadFile = File(...)):
+    """Pull the letter text (and the denial date, when findable) out of a PDF."""
+    from io import BytesIO
+
+    from pypdf import PdfReader
+    try:
+        reader = PdfReader(BytesIO(await file.read()))
+        text = "\n".join((p.extract_text() or "") for p in reader.pages).strip()
+    except Exception as e:
+        raise HTTPException(422, f"could not read PDF: {e}")
+    if not text:
+        raise HTTPException(422, "no extractable text in this PDF (scanned image?)")
+    detected = None
+    for pat, fmt in DATE_PATTERNS:
+        m = re.search(pat, text[:1500])
+        if m:
+            try:
+                detected = datetime.strptime(m.group(1), fmt).strftime("%Y-%m-%d")
+                break
+            except ValueError:
+                continue
+    return {"text": text[:12000], "pages": len(reader.pages), "detected_date": detected}
 
 
 @app.post("/api/case")
