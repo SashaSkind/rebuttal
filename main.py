@@ -23,6 +23,16 @@ load_dotenv()
 client = MongoClient(os.environ["MONGODB_URI"])
 db = client[os.environ.get("MONGODB_DB", "rebuttal")]
 
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
+
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+_or_key = os.environ.get("OPENROUTER_API_KEY", "")
+openrouter = (OpenAI(base_url="https://openrouter.ai/api/v1", api_key=_or_key)
+              if (OpenAI and _or_key) else None)
+
 app = FastAPI(title="Rebuttal")
 
 
@@ -223,12 +233,70 @@ def compose_letter(case: dict, strategy: dict, missing) -> str:
     return "\n".join(lines)
 
 
+DRAFT_SYSTEM = """You write internal-appeal letters for health-insurance claim denials on behalf of a patient.
+Rules:
+- Build the ENTIRE argument around the single strategy provided. Do not blend in other argument types.
+- Never use any strategy listed under "DO NOT USE" — those already failed for this patient.
+- Use only facts present in the denial letter and the evidence list. Invent nothing clinical; where a needed detail is unknown, write a [bracketed placeholder].
+- Reference the appeal deadline. Request a written response with clinical rationale.
+- Tone: firm, plain, professional. First person, patient's voice. Maximum one page.
+Output only the letter text."""
+
+
+def build_draft_prompt(case: dict, strategy: dict, missing, excluded: list) -> str:
+    excluded_txt = "\n".join(f"- {e['name']}" for e in excluded) or "- (none)"
+    missing_txt = (f"The patient does NOT yet have: {missing['name']}. "
+                   f"Add one sentence noting it is being obtained."
+                   if missing else "No missing evidence to mention.")
+    basis = (strategy.get("example_phrasing") or strategy.get("description")
+             or strategy["name"])
+    return f"""DENIAL LETTER (verbatim from insurer):
+---
+{case['denial_text']}
+---
+
+STRATEGY TO USE (the only argument structure allowed):
+{strategy['name']}: {strategy.get('description', '')}
+Model phrasing: "{basis}"
+Track record: overturned {strategy['overturns']} of {strategy['n']} similar California IMR cases.
+
+EVIDENCE THE PATIENT HAS: {', '.join(case.get('evidence_have', [])) or 'none listed'}
+{missing_txt}
+
+DO NOT USE (already tried by this patient and denied on appeal):
+{excluded_txt}
+
+APPEAL DEADLINE: {iso(case['deadlines']['internal_appeal_due'])}
+
+Write the appeal letter."""
+
+
+def llm_letter(case: dict, strategy: dict, missing, excluded: list):
+    """OpenRouter draft; returns None on any failure so the deterministic
+    composer takes over — a provider hiccup must never kill the demo."""
+    if not openrouter:
+        return None
+    try:
+        r = openrouter.chat.completions.create(
+            model=OPENROUTER_MODEL, temperature=0.4, max_tokens=1100, timeout=25,
+            messages=[{"role": "system", "content": DRAFT_SYSTEM},
+                      {"role": "user", "content": build_draft_prompt(
+                          case, strategy, missing, excluded)}])
+        text = (r.choices[0].message.content or "").strip()
+        return text or None
+    except Exception as e:
+        print(f"openrouter draft failed ({e}); using deterministic composer")
+        return None
+
+
 def do_draft(case: dict) -> dict:
     ranked = rank_strategies(case)
     if not ranked["strategies"]:
         raise HTTPException(409, "no strategies left — every known argument has been excluded")
     top = ranked["strategies"][0]
-    letter = compose_letter(case, top, ranked["missing_evidence"])
+    excluded = excluded_details(case["_id"])
+    letter = (llm_letter(case, top, ranked["missing_evidence"], excluded)
+              or compose_letter(case, top, ranked["missing_evidence"]))
     db[COLL_ATTEMPTS].insert_one({"case_id": case["_id"], "strategy_id": top["strategy_id"],
                                   "stage": case["stage"], "outcome": "pending",
                                   "recorded_at": utcnow(), "letter": letter})
