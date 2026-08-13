@@ -25,7 +25,7 @@ from taxonomy import EVIDENCE_KEYS, FOCUS_DIAGNOSIS, STRATEGY_KEYS
 CHECKPOINT = os.path.join("data", "extract_checkpoint.jsonl")
 TARGET_N = 2000
 WORKERS = 16
-MODEL = os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/llama-v3p1-8b-instruct")
+MODEL = os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/gpt-oss-20b")
 
 
 def client_db():
@@ -117,7 +117,7 @@ def classify_one(row, api_key):
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
                 body = json.loads(resp.read().decode())
-            text = body["choices"][0]["message"]["content"]
+            text = body["choices"][0]["message"].get("content") or ""
             parsed = json.loads(text)
             sk = [k for k in parsed.get("strategy_keys", []) if k in STRATEGY_KEYS]
             ek = [k for k in parsed.get("evidence_keys", []) if k in EVIDENCE_KEYS]
@@ -146,6 +146,7 @@ def classify_one(row, api_key):
 
 
 def main():
+    load_env()
     api_key = os.environ.get("FIREWORKS_API_KEY")
     if not api_key:
         sys.exit("FIREWORKS_API_KEY missing — taxonomy is seeded; pass 2 waits on this key")
