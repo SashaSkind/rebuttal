@@ -1,0 +1,126 @@
+<!doctype html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rebuttal</title>
+<style>
+  :root{--bg:#0f1115;--card:#181b22;--ink:#e8eaf0;--dim:#8b93a7;--accent:#4f8cff;--win:#2ecc71;--lose:#e74c3c;--warn:#f5a623}
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,system-ui,sans-serif;max-width:880px;margin:0 auto;padding:24px}
+  h1{font-size:22px} h3{font-size:15px}
+  .sub{color:var(--dim);font-size:13px;margin:4px 0 20px}
+  textarea{width:100%;height:150px;background:var(--card);color:var(--ink);border:1px solid #2a2f3a;border-radius:8px;padding:12px;font:13px/1.4 ui-monospace,monospace}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:10px 0}
+  input[type=date]{background:var(--card);color:var(--ink);border:1px solid #2a2f3a;border-radius:6px;padding:6px}
+  label.ev{font-size:13px;color:var(--dim);display:inline-flex;gap:4px;align-items:center}
+  button{background:var(--accent);border:0;color:#fff;padding:10px 18px;border-radius:8px;font-size:14px;cursor:pointer}
+  button.ghost{background:#2a2f3a} button:disabled{opacity:.5}
+  .card{background:var(--card);border:1px solid #2a2f3a;border-radius:10px;padding:14px;margin:10px 0}
+  .card.excluded{opacity:.55;border-color:var(--lose)} .card.excluded h3{text-decoration:line-through}
+  .rate{float:right;font-weight:700} .win{color:var(--win)} .dim{color:var(--dim);font-size:13px}
+  .callout{border-left:4px solid var(--warn)}
+  .tag{font-size:11px;background:#2a2f3a;border-radius:4px;padding:2px 6px;color:var(--dim)}
+  pre{white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;background:#0b0d11;padding:14px;border-radius:8px}
+  .stat{font-size:17px;margin:14px 0 6px}
+  #results,#draftbox{display:none}
+</style></head>
+<body>
+<h1>Rebuttal</h1>
+<div class="sub">Appeals that remember. Outcome data: California DMHC Independent Medical Review
+records via the CHHS Open Data Portal (DMHC / Office of the Patient Advocate). Noncommercial
+demo built at the MongoDB Persistent Context Sprint. Not legal or medical advice.</div>
+
+<textarea id="letter" placeholder="Paste the denial letter here…"></textarea>
+<div class="row">
+  <span class="dim">Denial date:</span><input type="date" id="ddate">
+  <span id="evlist"></span>
+</div>
+<button id="go" onclick="analyze()">Analyze this denial</button>
+
+<div id="results">
+  <div class="stat" id="headline"></div>
+  <div class="dim" id="deadline"></div>
+  <div class="card callout" id="missing"></div>
+  <div id="strategies"></div>
+  <div id="excluded"></div>
+  <button id="draftbtn" onclick="draft()">Draft the appeal</button>
+</div>
+
+<div id="draftbox">
+  <h1 style="font-size:17px;margin-top:20px">Appeal draft <span class="tag" id="usedstrat"></span></h1>
+  <pre id="draft"></pre>
+  <div class="row">
+    <span class="dim">When the insurer responds:</span>
+    <button class="ghost" onclick="outcome('upheld')">Denial upheld</button>
+    <button onclick="outcome('overturned')">Overturned 🎉</button>
+  </div>
+</div>
+
+<script>
+let caseId = null;
+const $ = id => document.getElementById(id);
+
+async function api(path, body){
+  const r = await fetch(path, {method:'POST', headers:{'content-type':'application/json'},
+                               body: body ? JSON.stringify(body) : null});
+  if(!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+(async () => {   // evidence checkboxes from the catalog
+  const meta = await (await fetch('/api/meta')).json();
+  $('evlist').innerHTML = meta.evidence_types.map(e =>
+    `<label class="ev"><input type="checkbox" value="${e._id}">${e.name}</label>`).join(' ');
+})();
+
+async function analyze(){
+  if(!caseId){
+    const have = [...document.querySelectorAll('#evlist input:checked')].map(c => c.value);
+    const c = await api('/api/case', {denial_text: $('letter').value,
+                                      denial_date: $('ddate').value || null,
+                                      evidence_have: have});
+    caseId = c.case_id;
+  }
+  const r = await api(`/api/case/${caseId}/analyze`);
+  $('results').style.display = 'block';
+  $('headline').innerHTML = `Based on <b>${r.similar_cases}</b> similar California IMR cases —
+    <b class="win">${Math.round(r.overall_overturn_rate*100)}%</b> were overturned.`;
+  $('deadline').textContent = `Internal appeal deadline: ${r.deadlines.internal_appeal_due}
+    · External review window after that: ${r.deadlines.external_review_due}`;
+  $('missing').style.display = r.missing_evidence ? 'block' : 'none';
+  if(r.missing_evidence) $('missing').innerHTML =
+    `<b>The document you're missing:</b> ${r.missing_evidence.name} —
+     present in ${r.missing_evidence.seen_in_overturned} of the
+     ${r.missing_evidence.overturned_total} overturned similar cases.`;
+  $('strategies').innerHTML = r.strategies.map((s,i) => `
+    <div class="card"><span class="rate win">${Math.round(s.overturn_rate*100)}%</span>
+      <h3>${i+1}. ${s.name}</h3>
+      <div class="dim">${s.description}</div>
+      <div class="dim">Won ${s.overturns} of ${s.n} similar cases
+        ${s.citations[0] ? '· e.g. IMR case ' + s.citations[0].ref : ''}</div>
+    </div>`).join('');
+  $('excluded').innerHTML = r.excluded.map(e => `
+    <div class="card excluded"><span class="rate">EXCLUDED</span>
+      <h3>${e.name}</h3>
+      <div class="dim">You already appealed with this and the denial was upheld.
+        It will not be suggested to you again.</div>
+    </div>`).join('');
+}
+
+async function draft(){
+  $('draftbtn').disabled = true;
+  try{
+    const d = await api(`/api/case/${caseId}/draft`);
+    $('draftbox').style.display = 'block';
+    $('usedstrat').textContent = d.strategy.name;
+    $('draft').textContent = d.letter;
+  } finally { $('draftbtn').disabled = false; }
+}
+
+async function outcome(o){
+  await api(`/api/case/${caseId}/outcome`, {outcome: o});
+  if(o === 'upheld'){ await analyze(); await draft(); }  // beat two, live: re-rank + new argument
+  else { $('headline').innerHTML =
+    '🎉 Denial overturned. Recorded — the next patient\'s ranking just got smarter.'; }
+}
+</script>
+</body></html>
