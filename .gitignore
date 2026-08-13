@@ -1,0 +1,7 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+*.csv
+data/
+.extract_checkpoint.jsonl
