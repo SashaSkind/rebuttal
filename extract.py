@@ -97,7 +97,7 @@ def classify_one(row, api_key, url, model):
                         f"strategy_keys: 1-3 from {STRATEGY_KEYS}. "
                         f"evidence_keys: 1-3 from {EVIDENCE_KEYS}. "
                         "reasoning_pattern: one sentence. "
-                        "summary_text: write like a denial letter — condition, requested "
+                        "summary_text: write like a denial letter - condition, requested "
                         "service, plan's stated reason. Never mention overturned, upheld, "
                         "the reviewer, or the IMR result. Never invent slugs."
                     ),

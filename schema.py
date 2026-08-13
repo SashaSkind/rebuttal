@@ -1,6 +1,6 @@
 # Collections
 COLL_DECISIONS = "imr_decisions"  # raw public data, unmodified
-COLL_PROFILES = "denial_profiles"  # derived, searchable — the main index
+COLL_PROFILES = "denial_profiles"  # derived, searchable - the main index
 COLL_STRATEGIES = "strategies"  # argument archetypes (dictionary, not stats)
 COLL_EVIDENCE = "evidence_types"  # documentation archetypes (dictionary)
 COLL_CASES = "cases"  # B owns
@@ -21,7 +21,7 @@ SRC_DETERMINATION = "Determination"
 SRC_TYPE = "Type"  # Medical Necessity / Experimental/Investigational / Urgent Care
 SRC_FINDINGS = "Findings"
 
-# Source determination strings — map only in derived collections
+# Source determination strings - map only in derived collections
 SRC_UPHELD = "Upheld Decision of Health Plan"
 SRC_OVERTURNED = "Overturned Decision of Health Plan"
 

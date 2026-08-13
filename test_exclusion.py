@@ -11,7 +11,7 @@ case = requests.post(f"{BASE}/api/case", json={
 cid = case["case_id"]
 
 r1 = requests.post(f"{BASE}/api/case/{cid}/analyze").json()
-assert r1["strategies"], "no ranked strategies — is a search index queryable?"
+assert r1["strategies"], "no ranked strategies - is a search index queryable?"
 ids1 = [s["strategy_id"] for s in r1["strategies"]]
 top1 = ids1[0]
 
@@ -30,4 +30,4 @@ assert top1 in [e["strategy_id"] for e in r2["excluded"]], "FAIL: loss not surfa
 d2 = requests.post(f"{BASE}/api/case/{cid}/draft").json()
 assert d2["strategy"]["strategy_id"] != top1, "FAIL: redrafted with the failed strategy"
 
-print(f"PASS: exclusion works — {top1} -> {ids2[0]}")
+print(f"PASS: exclusion works - {top1} -> {ids2[0]}")

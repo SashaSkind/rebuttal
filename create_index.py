@@ -1,6 +1,6 @@
 """Create search indexes on denial_profiles.summary_text and poll until queryable.
 Two indexes: the auto-embedding vector index (primary), and a lexical Atlas
-Search index (fallback — set SEARCH_MODE=lexical if the vector one can't build).
+Search index (fallback - set SEARCH_MODE=lexical if the vector one can't build).
 Safe to re-run."""
 import os
 import time
@@ -30,7 +30,7 @@ if VECTOR_INDEX not in existing:
         ))
         print(f"{VECTOR_INDEX}: creation requested (auto-embedding)")
     except Exception as e:
-        print(f"{VECTOR_INDEX}: creation FAILED — {e}")
+        print(f"{VECTOR_INDEX}: creation FAILED - {e}")
         print("-> plan on SEARCH_MODE=lexical")
 
 if LEXICAL_INDEX not in existing:
@@ -41,16 +41,16 @@ if LEXICAL_INDEX not in existing:
         ))
         print(f"{LEXICAL_INDEX}: creation requested (lexical fallback)")
     except Exception as e:
-        print(f"{LEXICAL_INDEX}: creation FAILED — {e}")
+        print(f"{LEXICAL_INDEX}: creation FAILED - {e}")
 
 for _ in range(60):  # up to 5 minutes
     info = {i["name"]: i.get("queryable", False) for i in coll.list_search_indexes()}
     print("status:", info)
     if info.get(VECTOR_INDEX):
-        print(f"READY — use SEARCH_MODE=vector (default)")
+        print(f"READY - use SEARCH_MODE=vector (default)")
         break
     if info.get(LEXICAL_INDEX) and VECTOR_INDEX not in info:
-        print(f"READY — vector index absent; set SEARCH_MODE=lexical in .env")
+        print(f"READY - vector index absent; set SEARCH_MODE=lexical in .env")
         break
     time.sleep(5)
 else:

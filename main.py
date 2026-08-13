@@ -284,7 +284,7 @@ def llm_letter(case: dict, strategy: dict, missing, excluded: list):
                       {"role": "user", "content": build_draft_prompt(
                           case, strategy, missing, excluded)}])
         text = (r.choices[0].message.content or "").strip()
-        text = re.sub(r"\s*—\s*", " - ", text)   # no em dashes in output
+        text = re.sub("\\s*\u2014\\s*", " - ", text)  # no em dashes in output
         return text or None
     except Exception as e:
         print(f"openrouter draft failed ({e}); using deterministic composer")

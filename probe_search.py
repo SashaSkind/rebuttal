@@ -32,7 +32,7 @@ try:
         {"$limit": 3}, PROJECT]))
     for h in hits:
         print("  ", h["determination"], h["summary_text"])
-    print("LEXICAL OK — set SEARCH_MODE=lexical if vector failed"
+    print("LEXICAL OK - set SEARCH_MODE=lexical if vector failed"
           if hits else "lexical: no hits (index still building?)")
 except Exception as e:
     print(f"lexical FAILED: {e}")
