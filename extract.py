@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Pass 2: classify imr_decisions into denial_profiles against frozen taxonomy.
 
-Requires FIREWORKS_API_KEY. Checkpoints to data/extract_checkpoint.jsonl
+Requires OPENROUTER_API_KEY (preferred) or FIREWORKS_API_KEY.
 Concentrate in FOCUS_DIAGNOSIS. Do not run until taxonomy is eyeballed.
 """
 
@@ -24,8 +24,9 @@ from taxonomy import EVIDENCE_KEYS, FOCUS_DIAGNOSIS, STRATEGY_KEYS
 
 CHECKPOINT = os.path.join("data", "extract_checkpoint.jsonl")
 TARGET_N = 2000
-WORKERS = 16
-MODEL = os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/gpt-oss-20b")
+WORKERS = 8
+OR_URL = "https://openrouter.ai/api/v1/chat/completions"
+FW_URL = "https://api.fireworks.ai/inference/v1/chat/completions"
 
 
 def client_db():
@@ -70,14 +71,14 @@ def pick_rows(coll, need, skip_refs):
     return out
 
 
-def classify_one(row, api_key):
+def classify_one(row, api_key, url, model):
     import urllib.request
 
     findings = (row.get("Findings") or "")[:2000]
     payload = json.dumps(
         {
-            "model": MODEL,
-            "max_tokens": 1200,
+            "model": model,
+            "max_tokens": 400,
             "temperature": 0,
             "response_format": {"type": "json_object"},
             "messages": [
@@ -112,15 +113,17 @@ def classify_one(row, api_key):
     for _ in range(2):
         try:
             req = urllib.request.Request(
-                "https://api.fireworks.ai/inference/v1/chat/completions",
+                url,
                 data=payload,
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
+                    "HTTP-Referer": "https://github.com/SashaSkind/rebuttal",
+                    "X-Title": "rebuttal-extract",
                 },
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=90) as resp:
                 body = json.loads(resp.read().decode())
             text = (body["choices"][0]["message"].get("content") or "").strip()
             if text.startswith("```"):
@@ -156,9 +159,18 @@ def classify_one(row, api_key):
 
 def main():
     load_env()
-    api_key = os.environ.get("FIREWORKS_API_KEY")
-    if not api_key:
-        sys.exit("FIREWORKS_API_KEY missing — taxonomy is seeded; pass 2 waits on this key")
+    if os.environ.get("OPENROUTER_API_KEY"):
+        api_key = os.environ["OPENROUTER_API_KEY"]
+        url = OR_URL
+        model = os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+        print(f"using OpenRouter {model}")
+    elif os.environ.get("FIREWORKS_API_KEY"):
+        api_key = os.environ["FIREWORKS_API_KEY"]
+        url = FW_URL
+        model = os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/gpt-oss-20b")
+        print(f"using Fireworks {model}")
+    else:
+        sys.exit("need OPENROUTER_API_KEY or FIREWORKS_API_KEY")
     db = client_db()
     done = loaded_refs()
     need = TARGET_N - len(done)
@@ -172,7 +184,7 @@ def main():
     ok_ops = []
     n_ok = n_fail = 0
     with ThreadPoolExecutor(max_workers=WORKERS) as ex:
-        futs = {ex.submit(classify_one, r, api_key): r for r in rows}
+        futs = {ex.submit(classify_one, r, api_key, url, model): r for r in rows}
         for i, fut in enumerate(as_completed(futs), 1):
             rec = fut.result()
             with open(CHECKPOINT, "a") as f:
