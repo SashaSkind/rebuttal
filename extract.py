@@ -72,7 +72,14 @@ def pick_rows(coll, need, skip_refs):
 
 
 def classify_one(row, api_key, url, model):
+    import ssl
     import urllib.request
+
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        ctx = None
 
     findings = (row.get("Findings") or "")[:2000]
     payload = json.dumps(
@@ -123,7 +130,7 @@ def classify_one(row, api_key, url, model):
                 },
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=90) as resp:
+            with urllib.request.urlopen(req, timeout=90, context=ctx) as resp:
                 body = json.loads(resp.read().decode())
             text = (body["choices"][0]["message"].get("content") or "").strip()
             if text.startswith("```"):
