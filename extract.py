@@ -44,9 +44,11 @@ def loaded_refs():
         with open(CHECKPOINT) as f:
             for line in f:
                 try:
-                    done.add(json.loads(line)["source_ref"])
+                    rec = json.loads(line)
                 except Exception:
                     continue
+                if rec.get("source_ref") and not rec.get("error"):
+                    done.add(rec["source_ref"])
     return done
 
 
@@ -71,53 +73,60 @@ def pick_rows(coll, need, skip_refs):
 def classify_one(row, api_key):
     import urllib.request
 
-    findings = (row.get("Findings") or "")[:4000]
-    prompt = {
-        "model": MODEL,
-        "max_tokens": 400,
-        "temperature": 0,
-        "response_format": {"type": "json_object"},
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "Classify an IMR findings narrative. Return JSON only: "
-                    '{"strategy_keys":[],"evidence_keys":[],'
-                    '"reasoning_pattern":"one sentence why the reviewer decided",'
-                    '"summary_text":"condition, service requested, stated denial reason; NO outcome"} '
-                    f"strategy_keys MUST be a subset of {STRATEGY_KEYS}. "
-                    f"evidence_keys MUST be a subset of {EVIDENCE_KEYS}. "
-                    "Pick 1-3 of each. Never invent slugs."
-                ),
-            },
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {
-                        "DiagnosisCategory": row.get("DiagnosisCategory"),
-                        "TreatmentCategory": row.get("TreatmentCategory"),
-                        "Type": row.get("Type"),
-                        "Findings": findings,
-                    }
-                ),
-            },
-        ],
-    }
-    req = urllib.request.Request(
-        "https://api.fireworks.ai/inference/v1/chat/completions",
-        data=json.dumps(prompt).encode(),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
+    findings = (row.get("Findings") or "")[:2000]
+    payload = json.dumps(
+        {
+            "model": MODEL,
+            "max_tokens": 1200,
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Return one JSON object. Keys: strategy_keys, evidence_keys, "
+                        "reasoning_pattern, summary_text. "
+                        f"strategy_keys: 1-3 from {STRATEGY_KEYS}. "
+                        f"evidence_keys: 1-3 from {EVIDENCE_KEYS}. "
+                        "reasoning_pattern: one sentence. "
+                        "summary_text: write like a denial letter — condition, requested "
+                        "service, plan's stated reason. Never mention overturned, upheld, "
+                        "the reviewer, or the IMR result. Never invent slugs."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "DiagnosisCategory": row.get("DiagnosisCategory"),
+                            "TreatmentCategory": row.get("TreatmentCategory"),
+                            "Type": row.get("Type"),
+                            "Findings": findings,
+                        }
+                    ),
+                },
+            ],
+        }
+    ).encode()
     last_err = None
     for _ in range(2):
         try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            req = urllib.request.Request(
+                "https://api.fireworks.ai/inference/v1/chat/completions",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=120) as resp:
                 body = json.loads(resp.read().decode())
-            text = body["choices"][0]["message"].get("content") or ""
+            text = (body["choices"][0]["message"].get("content") or "").strip()
+            if text.startswith("```"):
+                text = text.strip("`")
+                if text.startswith("json"):
+                    text = text[4:]
             parsed = json.loads(text)
             sk = [k for k in parsed.get("strategy_keys", []) if k in STRATEGY_KEYS]
             ek = [k for k in parsed.get("evidence_keys", []) if k in EVIDENCE_KEYS]
