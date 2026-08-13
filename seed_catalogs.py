@@ -1,6 +1,6 @@
 """Seed the strategies / evidence_types dictionaries for the keys used in
 denial_profiles. Idempotent upserts; safe to re-run. Names/descriptions power
-the UI and the $lookup display — the stats live on the profile aggregation."""
+the UI and the $lookup display - the stats live on the profile aggregation."""
 import os
 
 from dotenv import load_dotenv

@@ -207,7 +207,7 @@
   <header>
     <div class="logo">R</div>
     <div class="hbar">
-      <span class="mono" id="clock">—</span>
+      <span class="mono" id="clock"> - </span>
       <nav>
         <a href="#app">Analyze</a><a href="#results">Strategies</a><a href="#draftbox">Draft</a>
       </nav>
@@ -224,21 +224,21 @@
   <div class="grid band">
     <div class="cell dither"></div>
     <div class="cell black pitch">
-      <p>The insurer remembers every appeal ever filed. Patients start from zero. Rebuttal remembers what wins — for you, and for everyone before you.</p>
+      <p>The insurer remembers every appeal ever filed. Patients start from zero. Rebuttal remembers what wins - for you, and for everyone before you.</p>
       <a class="ctarow mono" href="#app">Start an appeal <span>→</span></a>
     </div>
     <div class="cell mintc impact">
-      <p>Fewer than 1% of denied claims are ever appealed. Of those that are, 43&ndash;67% win.</p>
+      <p>Fewer than 1% of denied claims are ever appealed. Of those that are, 43 to 67% win.</p>
       <p style="margin-top:26px">Built on 35,000+ real California IMR decisions.</p>
     </div>
   </div>
 
   <div class="grid" id="app" style="grid-template-columns:280px 1fr">
-    <div class="cell label"><span class="sq"></span><span class="mono">01 — The denial letter</span></div>
+    <div class="cell label"><span class="sq"></span><span class="mono">01 - The denial letter</span></div>
     <div class="cell">
       <div id="drop" class="drop">
         <input type="file" id="pdf" accept="application/pdf,.pdf" hidden>
-        <div class="mono" id="dropmsg">Drop the denial letter PDF here — or click to choose the file</div>
+        <div class="mono" id="dropmsg">Drop the denial letter PDF here - or click to choose the file</div>
       </div>
       <textarea id="letter" placeholder="…OR PASTE THE LETTER TEXT HERE"></textarea>
     </div>
@@ -246,13 +246,13 @@
 
   <div class="grid controls">
     <div class="cell">
-      <div class="label"><span class="sq"></span><span class="mono">02 — Denial date</span></div>
+      <div class="label"><span class="sq"></span><span class="mono">02 - Denial date</span></div>
       <input type="date" id="ddate">
       <div class="mono dim" style="margin-top:10px">Auto-detected from the PDF when possible</div>
     </div>
     <div class="cell">
-      <div class="label"><span class="sq"></span><span class="mono">03 — Evidence you already have</span></div>
-      <div class="mono dim" style="margin-top:6px">Tap everything you can attach — it drives the missing-document callout</div>
+      <div class="label"><span class="sq"></span><span class="mono">03 - Evidence you already have</span></div>
+      <div class="mono dim" style="margin-top:6px">Tap everything you can attach - it drives the missing-document callout</div>
       <div id="evlist"></div>
     </div>
     <button class="bigbtn" id="go" onclick="analyze()" disabled>Analyze this denial <span>→</span></button>
@@ -275,7 +275,7 @@
   <div id="draftbox">
     <div class="grid">
       <div class="cell">
-        <div class="label"><span class="sq m"></span><span class="mono">Appeal draft — built on: <span id="usedstrat"></span></span></div>
+        <div class="label"><span class="sq m"></span><span class="mono">Appeal draft - built on: <span id="usedstrat"></span></span></div>
         <pre id="draft"></pre>
       </div>
     </div>
@@ -294,7 +294,7 @@
       <div class="big">Every appeal filed makes the next one smarter.</div>
       <div class="mono" style="margin-top:40px;line-height:2">
         MongoDB Atlas · Vector Search (voyage-4) · Built at the Persistent Context Sprint<br>
-        Data: California DMHC Independent Medical Review — CHHS Open Data · DMHC / Office of the Patient Advocate<br>
+        Data: California DMHC Independent Medical Review - CHHS Open Data · DMHC / Office of the Patient Advocate<br>
         Noncommercial · Not legal or medical advice
       </div>
     </div>
@@ -353,17 +353,17 @@ async function ingestPdf(f){
   const fd = new FormData(); fd.append('file', f);
   const r = await fetch('/api/extract_pdf', {method: 'POST', body: fd});
   if(!r.ok){
-    $('dropmsg').textContent = 'COULD NOT READ THAT PDF — PASTE THE TEXT BELOW INSTEAD';
+    $('dropmsg').textContent = 'COULD NOT READ THAT PDF - PASTE THE TEXT BELOW INSTEAD';
     return;
   }
   const d = await r.json();
   $('letter').value = d.text;
   if (d.detected_date) $('ddate').value = d.detected_date;
   dropEl.classList.add('ok');
-  $('dropmsg').textContent = '■ ' + f.name.toUpperCase() + ' — ' + d.pages +
+  $('dropmsg').textContent = '■ ' + f.name.toUpperCase() + ' - ' + d.pages +
     (d.pages > 1 ? ' PAGES' : ' PAGE') +
     (d.detected_date ? ' · DENIAL DATE ' + d.detected_date : '') +
-    ' · TEXT EXTRACTED — EDIT BELOW IF NEEDED';
+    ' · TEXT EXTRACTED - EDIT BELOW IF NEEDED';
   checkReady();
 }
 
@@ -381,8 +381,7 @@ async function analyze(){
   const r = await api(`/api/case/${caseId}/analyze`);
   $('results').style.display = 'block';
   $('headline').innerHTML =
-    `Based on <span class="m">${r.similar_cases}</span> similar California IMR cases —
-     <span class="m">${Math.round(r.overall_overturn_rate*100)}%</span> were overturned.`;
+    `Based on <span class="m">${r.similar_cases}</span> similar California IMR cases -      <span class="m">${Math.round(r.overall_overturn_rate*100)}%</span> were overturned.`;
   $('deadline').innerHTML =
     `INTERNAL APPEAL DUE&nbsp;&nbsp;${r.deadlines.internal_appeal_due}<br>
      EXTERNAL REVIEW DUE&nbsp;&nbsp;${r.deadlines.external_review_due}`;
@@ -413,7 +412,7 @@ async function analyze(){
       <div class="snum mono">××</div>
       <div class="stitle">
         <h3>${e.name}</h3>
-        <div class="mono extag">Excluded — lost at internal review</div>
+        <div class="mono extag">Excluded - lost at internal review</div>
       </div>
       <div class="sright">
         <p>You already appealed with this argument and the denial was upheld.
@@ -440,7 +439,7 @@ async function outcome(o){
   await api(`/api/case/${caseId}/outcome`, {outcome: o});
   if(o === 'upheld'){ await analyze(); await draft(); }  // beat two, live: re-rank + new argument
   else { $('headline').innerHTML =
-    'Denial <span class="m">overturned</span>. Recorded — the next patient\'s ranking just got smarter.'; }
+    'Denial <span class="m">overturned</span>. Recorded - the next patient\'s ranking just got smarter.'; }
 }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
@@ -656,7 +655,7 @@ async function outcome(o){
     setGeom(W, H, cx, x0, x1, capTop, baseY, bottom, wordW, fontSize, len);
   }
 
-  // simple fallback (no opentype) — keeps the piece working
+  // simple fallback (no opentype) - keeps the piece working
   function layoutFallback(W, H) {
     const cx = W/2;
     const t = mk(clipEl.parentNode.parentNode, "text", {}); // not used; build text-based clip instead
@@ -729,7 +728,7 @@ async function outcome(o){
     const g = geom;
     const fillHeight = g.bottom - g.capTop;
 
-    // PHASE 1 — contour draw
+    // PHASE 1 - contour draw
     const dprog = easeDraw(clamp01((time - T.drawStart) / T.drawTotal));
     if (g.len) outlineEl.style.strokeDashoffset = g.len * (1 - dprog);
 
@@ -741,7 +740,7 @@ async function outcome(o){
       m.el.style.opacity = clamp01((dprog - m.tx) / 0.05).toFixed(3);
     }
 
-    // PHASE 2/3 — liquid rise
+    // PHASE 2/3 - liquid rise
     let pRaw = clamp01((time - T.fillStart) / T.fillDur);
     if (time < T.fillStart) pRaw = 0;
     const p = easeFill(pRaw);
@@ -760,7 +759,7 @@ async function outcome(o){
     // outline merges into solid fill
     outlineEl.style.opacity = (1 - 0.7 * smooth(2.2, 4.0, time)).toFixed(3);
 
-    // PHASE 4 — settle bounce
+    // PHASE 4 - settle bounce
     let bounce = 0;
     if (time >= T.holdStart && time < T.holdStart + 0.32) {
       const bt = (time - T.holdStart) / 0.32;
@@ -768,7 +767,7 @@ async function outcome(o){
     }
     wordGroup.style.transform = `translateY(${bounce.toFixed(2)}px)`;
 
-    // PHASE 5 — drain out the bottom
+    // PHASE 5 - drain out the bottom
     const dp = easeIn(clamp01((time - T.drainStart) / T.drainDur));
     const edgeY = g.capTop - 4 + dp * (g.bottom - g.capTop + 8);
     drainRect.setAttribute("y", edgeY);

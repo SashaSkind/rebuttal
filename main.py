@@ -1,4 +1,4 @@
-"""Rebuttal — insurance denial appeals that remember. Person B's service.
+"""Rebuttal - insurance denial appeals that remember. Person B's service.
 
 Outcome data: California DMHC Independent Medical Review records (CHHS Open
 Data Portal). Noncommercial use. Not legal or medical advice.
@@ -190,7 +190,7 @@ def excluded_details(case_id: ObjectId) -> list:
 
 # ------------------------------------------------------------------ drafting
 def compose_letter(case: dict, strategy: dict, missing) -> str:
-    """Deterministic letter composer — every sentence is driven by stored state:
+    """Deterministic letter composer - every sentence is driven by stored state:
     the top non-excluded strategy, its live track record, the user's evidence
     list, and the computed deadline."""
     evidence_names = {e["_id"]: e.get("name", e["_id"]) for e in db[COLL_EVIDENCE].find()}
@@ -212,7 +212,7 @@ def compose_letter(case: dict, strategy: dict, missing) -> str:
         f"The central basis of this appeal: {basis} "
         "The clinical record accompanying this appeal supports this argument in my case.",
         (f"In {strategy['n']} comparable cases reviewed under California's Independent "
-         f"Medical Review program, this argument prevailed in {strategy['overturns']} — "
+         f"Medical Review program, this argument prevailed in {strategy['overturns']} - "
          f"a {round(100 * strategy['overturn_rate'])}% overturn rate in independent review."),
         "",
     ]
@@ -237,7 +237,7 @@ def compose_letter(case: dict, strategy: dict, missing) -> str:
 DRAFT_SYSTEM = """You write internal-appeal letters for health-insurance claim denials on behalf of a patient.
 Rules:
 - Build the ENTIRE argument around the single strategy provided. Do not blend in other argument types.
-- Never use any strategy listed under "DO NOT USE" — those already failed for this patient.
+- Never use any strategy listed under "DO NOT USE" - those already failed for this patient.
 - Use only facts present in the denial letter and the evidence list. Invent nothing clinical; where a needed detail is unknown, write a [bracketed placeholder].
 - Reference the appeal deadline. Request a written response with clinical rationale.
 - Tone: firm, plain, professional. First person, patient's voice. Maximum one page.
@@ -274,7 +274,7 @@ Write the appeal letter."""
 
 def llm_letter(case: dict, strategy: dict, missing, excluded: list):
     """OpenRouter draft; returns None on any failure so the deterministic
-    composer takes over — a provider hiccup must never kill the demo."""
+    composer takes over - a provider hiccup must never kill the demo."""
     if not openrouter:
         return None
     try:
@@ -284,6 +284,7 @@ def llm_letter(case: dict, strategy: dict, missing, excluded: list):
                       {"role": "user", "content": build_draft_prompt(
                           case, strategy, missing, excluded)}])
         text = (r.choices[0].message.content or "").strip()
+        text = re.sub(r"\s*—\s*", " - ", text)   # no em dashes in output
         return text or None
     except Exception as e:
         print(f"openrouter draft failed ({e}); using deterministic composer")
@@ -293,7 +294,7 @@ def llm_letter(case: dict, strategy: dict, missing, excluded: list):
 def do_draft(case: dict) -> dict:
     ranked = rank_strategies(case)
     if not ranked["strategies"]:
-        raise HTTPException(409, "no strategies left — every known argument has been excluded")
+        raise HTTPException(409, "no strategies left - every known argument has been excluded")
     top = ranked["strategies"][0]
     excluded = excluded_details(case["_id"])
     letter = (llm_letter(case, top, ranked["missing_evidence"], excluded)

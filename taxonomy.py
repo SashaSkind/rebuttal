@@ -1,6 +1,6 @@
 """Closed taxonomy for denial_profiles.strategy_keys / evidence_keys.
 
-Eyeball before pass 2. If a slug is generic, regenerate — do not classify 2k rows against mush.
+Eyeball before pass 2. If a slug is generic, regenerate - do not classify 2k rows against mush.
 """
 
 STRATEGIES = [
