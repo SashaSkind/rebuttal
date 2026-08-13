@@ -12,6 +12,7 @@ from bson import ObjectId
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pymongo import MongoClient
 
@@ -35,6 +36,7 @@ openrouter = (OpenAI(base_url="https://openrouter.ai/api/v1", api_key=_or_key)
               if (OpenAI and _or_key) else None)
 
 app = FastAPI(title="Rebuttal")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 class CaseIn(BaseModel):

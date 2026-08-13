@@ -2,6 +2,7 @@
 <html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Rebuttal</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
@@ -35,8 +36,8 @@
 
   /* header */
   header{display:grid;grid-template-columns:76px 1fr auto auto;gap:1px;background:var(--ink)}
-  .logo{background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;
-        font-weight:700;font-size:30px;letter-spacing:-.04em}
+  .logo{background:var(--paper);display:flex;align-items:center;justify-content:center;padding:8px}
+  .logo img{width:100%;height:100%;object-fit:contain;display:block}
   .hbar{background:var(--paper);display:flex;align-items:center;gap:34px;padding:0 30px;height:72px}
   .hbar nav{margin-left:auto;display:flex;gap:26px}
   .hbar nav a{color:var(--ink);text-decoration:none;font-size:16px}
@@ -239,7 +240,7 @@
 <div class="frame">
 
   <header>
-    <div class="logo">R</div>
+    <div class="logo"><img src="/static/logo.png" alt="Rebuttal logo"></div>
     <div class="hbar">
       <span class="mono" id="clock"> - </span>
       <nav>
