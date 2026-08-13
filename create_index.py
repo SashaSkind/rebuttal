@@ -19,10 +19,13 @@ existing = [i["name"] for i in coll.list_search_indexes()]
 
 if VECTOR_INDEX not in existing:
     try:
+        # Sandbox cluster's autoEmbed syntax; supported models: voyage-4,
+        # voyage-4-large, voyage-4-lite, voyage-code-3
         coll.create_search_index(SearchIndexModel(
             name=VECTOR_INDEX, type="vectorSearch",
             definition={"fields": [
-                {"type": "text", "path": EMBED_SOURCE, "model": "voyage-3-large"},
+                {"type": "autoEmbed", "path": EMBED_SOURCE,
+                 "modality": "text", "model": "voyage-4"},
             ]},
         ))
         print(f"{VECTOR_INDEX}: creation requested (auto-embedding)")
